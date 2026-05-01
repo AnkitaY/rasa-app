@@ -27,11 +27,16 @@ export async function POST(request: NextRequest) {
     const anonClient = createClient()
     const { data: { user } } = await anonClient.auth.getUser()
 
-    // Fetch recipes
-    const { data: recipes, error: recipeError } = await adminClient
+    // Fetch recipes — when unauthenticated only pull null user_id rows
+    const recipesQuery = adminClient
       .from('recipes')
       .select('id, name, cuisine_type, meal_type, servings, macros_per_serving, batch_cookable, ingredients')
-      .or(`user_id.eq.${user?.id ?? 'null'},user_id.is.null`)
+
+    const { data: recipes, error: recipeError } = await (
+      user?.id
+        ? recipesQuery.or(`user_id.eq.${user.id},user_id.is.null`)
+        : recipesQuery.is('user_id', null)
+    )
 
     if (recipeError) {
       return NextResponse.json({ error: recipeError.message }, { status: 500 })
@@ -45,11 +50,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch use_soon inventory
-    const { data: inventory } = await adminClient
+    const inventoryQuery = adminClient
       .from('inventory_items')
       .select('name, quantity, unit')
       .eq('use_soon', true)
-      .or(`user_id.eq.${user?.id ?? 'null'},user_id.is.null`)
+
+    const { data: inventory } = await (
+      user?.id
+        ? inventoryQuery.or(`user_id.eq.${user.id},user_id.is.null`)
+        : inventoryQuery.is('user_id', null)
+    )
 
     const recipeList = recipes.map((r) => ({
       id: r.id,

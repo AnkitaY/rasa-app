@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ChefHat, CalendarDays } from 'lucide-react'
+import { ChefHat, CalendarDays, Package, ShoppingCart } from 'lucide-react'
 
 export default function Home() {
   return (
@@ -20,6 +20,20 @@ export default function Home() {
         >
           <CalendarDays className="w-4 h-4" />
           Weekly Planner
+        </Link>
+        <Link
+          href="/inventory"
+          className="flex items-center gap-2 rounded-lg border px-5 py-3 text-sm font-medium hover:bg-accent transition-colors"
+        >
+          <Package className="w-4 h-4" />
+          Inventory
+        </Link>
+        <Link
+          href="/shopping"
+          className="flex items-center gap-2 rounded-lg border px-5 py-3 text-sm font-medium hover:bg-accent transition-colors"
+        >
+          <ShoppingCart className="w-4 h-4" />
+          Shopping List
         </Link>
       </div>
     </main>

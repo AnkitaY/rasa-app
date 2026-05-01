@@ -68,6 +68,38 @@ export interface WeekPlan {
   created_at: string
 }
 
+export interface InventoryItem {
+  id: string
+  user_id: string | null
+  name: string
+  quantity: number | null
+  unit: string | null
+  location: 'fridge' | 'freezer' | 'pantry'
+  use_soon: boolean
+  low_stock: boolean
+  updated_at: string
+}
+
+export interface ParsedInventoryItem {
+  name: string
+  quantity: number | null
+  unit: string | null
+  location: 'fridge' | 'freezer' | 'pantry'
+  use_soon: boolean
+  low_stock: boolean
+  checked: boolean
+}
+
+export interface ShoppingListItem {
+  name: string
+  quantity_needed: number | null
+  quantity_have: number | null
+  unit: string | null
+  category: string
+  checked: boolean
+  manually_added?: boolean
+}
+
 export interface GeneratedRecipe {
   name: string
   cuisine_type: string
