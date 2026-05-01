@@ -100,6 +100,45 @@ export interface ShoppingListItem {
   manually_added?: boolean
 }
 
+export type PrepTaskType = 'passive_prep' | 'quick_prep' | 'cook_ahead' | 'finish_only'
+
+export interface PrepTask {
+  task_type: PrepTaskType
+  description: string
+  duration_minutes: number
+  parallel_with: string
+}
+
+export interface KitchenBatchOpportunity {
+  description: string
+  extra_time_minutes: number
+  saves_future_meal: string
+}
+
+export interface KitchenSession {
+  id: string
+  user_id: string | null
+  week_plan_id: string | null
+  session_date: string
+  dinner_recipe_id: string | null
+  dinner_recipe_name: string | null
+  brunch_recipe_id: string | null
+  brunch_recipe_name: string | null
+  session_duration_minutes: number | null
+  prep_tasks: PrepTask[]
+  tomorrow_finish_steps: string[]
+  batch_opportunities: KitchenBatchOpportunity[]
+  brunch_done: boolean
+  created_at: string
+}
+
+export interface GeneratedKitchenSession {
+  session_duration_minutes: number
+  prep_tasks: PrepTask[]
+  tomorrow_finish_steps: string[]
+  batch_opportunities: KitchenBatchOpportunity[]
+}
+
 export interface GeneratedRecipe {
   name: string
   cuisine_type: string

@@ -1,11 +1,19 @@
 import Link from 'next/link'
 import { ChefHat, CalendarDays, Package, ShoppingCart } from 'lucide-react'
+import KitchenHomeCard from './components/KitchenHomeCard'
 
 export default function Home() {
   return (
     <main className="min-h-screen bg-background flex flex-col items-center justify-center gap-6 p-8">
       <h1 className="text-3xl font-bold">Rasa App</h1>
       <p className="text-muted-foreground">AI-powered meal planning for your household.</p>
+
+      {/* Kitchen card — time-aware, full width */}
+      <div className="w-full max-w-sm">
+        <KitchenHomeCard />
+      </div>
+
+      {/* Nav links */}
       <div className="flex gap-4 flex-wrap justify-center">
         <Link
           href="/recipes"
