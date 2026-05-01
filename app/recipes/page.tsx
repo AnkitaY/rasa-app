@@ -91,7 +91,11 @@ export default function RecipesPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {recipes.map((recipe) => (
-            <Card key={recipe.id} className="hover:shadow-md transition-shadow">
+            <Card
+              key={recipe.id}
+              className="hover:shadow-md transition-shadow cursor-pointer"
+              onClick={() => router.push(`/recipes/${recipe.id}`)}
+            >
               <CardHeader className="pb-2">
                 <CardTitle className="text-base leading-snug">{recipe.name}</CardTitle>
                 <div className="flex flex-wrap gap-2 mt-1">
