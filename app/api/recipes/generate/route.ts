@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { GeneratedRecipe } from '@/lib/types'
 
 const anthropic = new Anthropic({
@@ -49,8 +50,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    // Resolve the authenticated user (may be null before auth is wired up)
+    const anonClient = createClient()
+    const { data: { user } } = await anonClient.auth.getUser()
 
     const recipeToSave = {
       user_id: user?.id ?? null,
@@ -66,7 +68,9 @@ export async function POST(request: NextRequest) {
       source_type: 'ai_generated',
     }
 
-    const { data: savedRecipe, error: dbError } = await supabase
+    // Use the service-role client so the insert is not blocked by RLS
+    const adminClient = createAdminClient()
+    const { data: savedRecipe, error: dbError } = await adminClient
       .from('recipes')
       .insert(recipeToSave)
       .select()

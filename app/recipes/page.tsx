@@ -13,6 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { buttonVariants } from '@/components/ui/button'
 import { ChefHat, Plus, Sparkles, Link as LinkIcon, PenLine } from 'lucide-react'
 
 export default function RecipesPage() {
@@ -41,11 +42,9 @@ export default function RecipesPage() {
         </div>
 
         <DropdownMenu>
-          <DropdownMenuTrigger>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Recipe
-            </Button>
+          <DropdownMenuTrigger className={buttonVariants({ variant: 'default' })}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Recipe
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuItem onClick={() => router.push('/recipes/add/generate')}>
