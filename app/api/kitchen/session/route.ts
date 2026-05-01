@@ -6,7 +6,7 @@ import { PlanSlot, GeneratedKitchenSession } from '@/lib/types'
 
 const anthropic = new Anthropic()
 
-const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 export async function POST() {
   try {
