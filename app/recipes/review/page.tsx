@@ -100,6 +100,7 @@ export default function ReviewRecipePage() {
     startTransition(async () => {
       const supabase = createClient()
 
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { id, created_at, ...rest } = recipe
       const upsertData = id ? { id, ...rest } : rest
 
