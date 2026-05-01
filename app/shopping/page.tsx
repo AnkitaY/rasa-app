@@ -235,6 +235,21 @@ export default function ShoppingPage() {
         </div>
       )}
 
+      {/* Skeleton */}
+      {loading && (
+        <div className="space-y-4 animate-pulse">
+          <div className="h-4 bg-muted rounded w-48" />
+          <div className="h-2 bg-muted rounded-full" />
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="space-y-2">
+              <div className="h-4 bg-muted rounded w-24" />
+              <div className="h-10 bg-muted rounded-lg" />
+              <div className="h-10 bg-muted rounded-lg" />
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Empty state */}
       {!loading && totalItems === 0 && (
         <div className="flex flex-col items-center justify-center py-24 text-center gap-4">

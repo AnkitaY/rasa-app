@@ -396,6 +396,16 @@ export default function KitchenPage() {
         </div>
       )}
 
+      {loading && (
+        <div className="space-y-4 animate-pulse">
+          <div className="h-28 bg-muted rounded-xl" />
+          <div className="h-4 bg-muted rounded w-40" />
+          <div className="h-16 bg-muted rounded-lg" />
+          <div className="h-16 bg-muted rounded-lg" />
+          <div className="h-16 bg-muted rounded-lg" />
+        </div>
+      )}
+
       {!loading && !session && !error && (
         <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
           <ChefHat className="w-16 h-16 text-muted-foreground" />
