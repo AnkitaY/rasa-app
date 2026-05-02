@@ -336,3 +336,35 @@ feat: Phase 0 complete — full RASA loop working
 5. `npx vercel --prod --yes` — redeploy after pushing
 
 No branches have been created yet; all work is on `master`.
+
+## AgentOS integration
+
+This project is managed by a three-agent system:
+- PM Agent (Claude Chat): owns requirements and PRD
+- UX Agent (Claude Chat): owns design specs and proposals  
+- Engineering Agent (Claude Chat): owns this brief and fires 
+  Claude Code sessions via Routines
+
+### Shared context location
+Google Drive: /AgentOS/MealPlannerApp/
+- COMPANY.md — product vision and constraints
+- PRD.md — features and acceptance criteria  
+- DECISIONS.md — all approved decisions
+- HANDOFFS.md — tickets between agents
+- BLOCKERS.md — unresolved questions
+
+### How implementation briefs arrive
+Each Claude Code session receives an implementation brief 
+in the text field of the Routine trigger. The brief will 
+reference a HANDOFF-[N] number. Read the brief completely 
+before touching any file.
+
+### Phase-0 status
+Phase-0 is complete. All existing code is considered 
+stable baseline. Do not refactor existing code unless 
+the brief explicitly instructs it.
+
+### Branch convention
+- Feature branches: feature/HANDOFF-[N]-[short-description]
+- All PRs open as draft against main
+- PR title format: [HANDOFF-N] Feature name — summary
