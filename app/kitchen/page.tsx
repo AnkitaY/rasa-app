@@ -57,24 +57,14 @@ function CookMode({
   const isLast = step === totalSteps - 1
   const isFirst = step === 0
 
-  // Tasks relevant to this step — fuzzy keyword match on parallel_with vs step text
+  // Only show tasks whose parallel_with matches this step — no fallback bleed
   const stepText = steps[step]?.toLowerCase() ?? ''
-  const relevantTasks = tonightTasks.filter((t) => {
+  const sideTasks = isLast ? [] : tonightTasks.filter((t) => {
     if (!t.parallel_with) return false
     const pw = t.parallel_with.toLowerCase()
-    // share at least one meaningful word (>4 chars)
     const words = pw.split(/\s+/).filter((w) => w.length > 4)
     return words.some((w) => stepText.includes(w))
   })
-  // Tasks with no match show from step 1 onwards (contextual)
-  const unmatchedTasks = tonightTasks.filter((t) => {
-    if (!t.parallel_with) return true
-    const pw = t.parallel_with.toLowerCase()
-    const words = pw.split(/\s+/).filter((w) => w.length > 4)
-    return !words.some((w) => stepText.includes(w))
-  })
-
-  const sideTasks = relevantTasks.length > 0 ? relevantTasks : (step >= 1 ? unmatchedTasks.slice(0, 2) : [])
 
   const checkedCount = tonightTasks.filter((_, i) => checkedTasks[i]).length
 
