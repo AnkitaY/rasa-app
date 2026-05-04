@@ -211,22 +211,44 @@ export default function PlannerPage() {
     })
   }
 
+  async function persistSlots(updatedSlots: PlanSlot[], updatedTotals: DailyTotal[]) {
+    if (!plan) return
+    try {
+      await fetch('/api/plans/update', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plan_id: plan.id,
+          slots: updatedSlots,
+          daily_totals: updatedTotals,
+          batch_opportunities: batchNotes.map((d) => ({ description: d })),
+        }),
+      })
+    } catch {
+      // Non-blocking — UI already updated; silent fail is acceptable
+    }
+  }
+
   function handleSwap(slot: PlanSlot, recipeId: string | null, recipeName: string, protein: number, carbs: number) {
     const updated = slots.map((s) =>
       s.day === slot.day && s.meal_type === slot.meal_type
         ? { ...s, recipe_id: recipeId, recipe_name: recipeName, protein_g: protein, carbs_g: carbs, eating_out: false }
         : s
     )
+    const updatedTotals = recomputeDailyTotals(updated)
     setSlots(updated)
-    setDailyTotals(recomputeDailyTotals(updated))
+    setDailyTotals(updatedTotals)
+    persistSlots(updated, updatedTotals)
   }
 
   function handleLock(slot: PlanSlot) {
-    setSlots((prev) =>
-      prev.map((s) =>
-        s.day === slot.day && s.meal_type === slot.meal_type ? { ...s, locked: !s.locked } : s
-      )
+    const updated = slots.map((s) =>
+      s.day === slot.day && s.meal_type === slot.meal_type ? { ...s, locked: !s.locked } : s
     )
+    const updatedTotals = recomputeDailyTotals(updated)
+    setSlots(updated)
+    setDailyTotals(updatedTotals)
+    persistSlots(updated, updatedTotals)
   }
 
   function handleEatingOut(slot: PlanSlot) {
@@ -235,8 +257,10 @@ export default function PlannerPage() {
         ? { ...s, eating_out: !s.eating_out, recipe_id: null, recipe_name: 'Eating Out', protein_g: 0, carbs_g: 0 }
         : s
     )
+    const updatedTotals = recomputeDailyTotals(updated)
     setSlots(updated)
-    setDailyTotals(recomputeDailyTotals(updated))
+    setDailyTotals(updatedTotals)
+    persistSlots(updated, updatedTotals)
   }
 
   const hasLockedSlots = slots.some((s) => s.locked || s.eating_out)
