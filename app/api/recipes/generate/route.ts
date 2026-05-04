@@ -54,6 +54,12 @@ export async function POST(request: NextRequest) {
     const anonClient = createClient()
     const { data: { user } } = await anonClient.auth.getUser()
 
+    // Build the raw input string — dish name + modifier if provided.
+    // Stored verbatim so it can be reprocessed or audited later (DECISION-012).
+    const sourceRawText = modifier
+      ? `${dish_name.trim()}, ${modifier.trim()}`
+      : dish_name.trim()
+
     const recipeToSave = {
       user_id: user?.id ?? null,
       name: recipe.name,
@@ -66,6 +72,7 @@ export async function POST(request: NextRequest) {
       macros_per_serving: recipe.macros_per_serving,
       batch_cookable: recipe.batch_cookable ?? false,
       source_type: 'ai_generated',
+      source_raw_text: sourceRawText,
     }
 
     // Use the service-role client so the insert is not blocked by RLS
