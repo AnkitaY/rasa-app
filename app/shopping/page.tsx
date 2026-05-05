@@ -3,10 +3,8 @@
 import { useEffect, useState, useTransition } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ShoppingListItem } from '@/lib/types'
-import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
-import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import {
   ShoppingCart,
@@ -16,6 +14,7 @@ import {
   Trash2,
   Plus,
   AlertCircle,
+  CalendarDays,
 } from 'lucide-react'
 
 const CATEGORY_EMOJI: Record<string, string> = {
@@ -66,17 +65,17 @@ function ShoppingRow({
   onRemove: () => void
 }) {
   return (
-    <div className={cn('flex items-center gap-3 py-2', item.checked && 'opacity-50')}>
+    <div className={cn('flex items-center gap-3 py-2.5 border-b border-rasa-stone/50 last:border-0', item.checked && 'opacity-50')}>
       <Checkbox checked={item.checked} onCheckedChange={onToggle} />
       <div className="flex-1 min-w-0">
-        <span className={cn('text-sm', item.checked && 'line-through text-muted-foreground')}>
+        <span className={cn('text-sm font-display font-semibold text-rasa-ink', item.checked && 'line-through text-muted-foreground')}>
           {item.name}
         </span>
         {itemLabel(item) && (
-          <span className="text-xs text-muted-foreground ml-2">{itemLabel(item)}</span>
+          <span className="text-xs font-code text-muted-foreground ml-2">{itemLabel(item)}</span>
         )}
         {item.quantity_have !== null && !item.checked && (
-          <span className="text-[10px] text-blue-500 ml-2">
+          <span className="text-[10px] font-code text-rasa-fern ml-2">
             have {item.quantity_have}{item.unit ? ' ' + item.unit : ''}
           </span>
         )}
@@ -103,7 +102,6 @@ export default function ShoppingPage() {
   const [addingIn, setAddingIn] = useState<string | null>(null)
   const [newItemName, setNewItemName] = useState('')
 
-  // Load latest shopping list on mount
   useEffect(() => {
     createClient()
       .from('shopping_lists')
@@ -184,94 +182,112 @@ export default function ShoppingPage() {
 
   return (
     <main className="min-h-screen bg-background px-4 py-8 max-w-2xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+
+      {/* ── Header ─────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <ShoppingCart className="w-7 h-7 text-primary" />
-          <div>
-            <h1 className="text-2xl font-bold">Shopping List</h1>
-            {weekStart && (
-              <p className="text-xs text-muted-foreground">Week of {weekStart}</p>
-            )}
-          </div>
+          <ShoppingCart className="w-6 h-6 text-rasa-slate" />
+          <h1 className="font-serif text-2xl font-bold text-rasa-ink">Shopping List</h1>
         </div>
         <div className="flex gap-2">
           {totalItems > 0 && (
-            <Button variant="outline" onClick={handleCopy}>
-              {copied ? <Check className="w-4 h-4 mr-2 text-green-500" /> : <Copy className="w-4 h-4 mr-2" />}
-              {copied ? 'Copied!' : 'Copy list'}
-            </Button>
+            <button
+              onClick={handleCopy}
+              className="flex items-center gap-1.5 text-sm font-display font-semibold text-rasa-slate border border-rasa-stone rounded-xl px-3 py-2 hover:bg-rasa-mist transition"
+            >
+              {copied ? <Check className="w-4 h-4 text-rasa-fern" /> : <Copy className="w-4 h-4" />}
+              {copied ? 'Copied!' : 'Copy'}
+            </button>
           )}
-          <Button onClick={handleGenerate} disabled={isPending}>
+          <button
+            onClick={handleGenerate}
+            disabled={isPending}
+            className="flex items-center gap-1.5 text-sm font-display font-semibold bg-rasa-slate text-white rounded-xl px-3 py-2 hover:bg-rasa-slate/90 transition disabled:opacity-60"
+          >
             {isPending ? (
-              <><span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />Generating…</>
+              <><span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Generating…</>
             ) : (
-              <><RefreshCw className="w-4 h-4 mr-2" />{totalItems > 0 ? 'Regenerate' : 'Generate List'}</>
+              <><RefreshCw className="w-4 h-4" />{totalItems > 0 ? 'Regenerate' : 'Generate List'}</>
             )}
-          </Button>
+          </button>
         </div>
       </div>
 
+      {/* ── Plan connection banner ─────────────────────────────────── */}
+      {weekStart && (
+        <div className="flex items-center gap-2 rounded-xl bg-rasa-sprout border border-rasa-fern/30 px-3 py-2 mb-5">
+          <CalendarDays className="w-4 h-4 text-rasa-fern shrink-0" />
+          <p className="text-xs font-display font-semibold text-rasa-fern">
+            Built from week plan · {weekStart}
+          </p>
+        </div>
+      )}
+
       {error && (
-        <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2 mb-4">
+        <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2 mb-4">
           <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
-      {/* Progress bar */}
+      {/* ── Progress bar ────────────────────────────────────────────── */}
       {totalItems > 0 && (
-        <div className="mb-6">
-          <div className="flex justify-between text-xs text-muted-foreground mb-1">
-            <span>{totalItems - uncheckedItems} of {totalItems} items ticked off</span>
-            <span>{uncheckedItems} remaining</span>
+        <div className="mb-5">
+          <div className="flex justify-between text-xs font-display text-muted-foreground mb-1.5">
+            <span>{totalItems - uncheckedItems} of {totalItems} ticked off</span>
+            <span className="font-semibold text-rasa-slate">{uncheckedItems} remaining</span>
           </div>
-          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+          <div className="h-1.5 bg-rasa-stone rounded-full overflow-hidden">
             <div
-              className="h-full bg-primary rounded-full transition-all"
+              className="h-full bg-rasa-fern rounded-full transition-all"
               style={{ width: `${totalItems ? ((totalItems - uncheckedItems) / totalItems) * 100 : 0}%` }}
             />
           </div>
         </div>
       )}
 
-      {/* Skeleton */}
+      {/* ── Loading skeleton ───────────────────────────────────────── */}
       {loading && (
         <div className="space-y-4 animate-pulse">
-          <div className="h-4 bg-muted rounded w-48" />
-          <div className="h-2 bg-muted rounded-full" />
+          <div className="h-4 bg-rasa-stone rounded w-48" />
+          <div className="h-2 bg-rasa-stone rounded-full" />
           {[1, 2, 3].map((i) => (
             <div key={i} className="space-y-2">
-              <div className="h-4 bg-muted rounded w-24" />
-              <div className="h-10 bg-muted rounded-lg" />
-              <div className="h-10 bg-muted rounded-lg" />
+              <div className="h-5 bg-rasa-stone rounded w-24" />
+              <div className="h-10 bg-rasa-stone rounded-xl" />
+              <div className="h-10 bg-rasa-stone rounded-xl" />
             </div>
           ))}
         </div>
       )}
 
-      {/* Empty state */}
+      {/* ── Empty state ─────────────────────────────────────────────── */}
       {!loading && totalItems === 0 && (
         <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
-          <ShoppingCart className="w-16 h-16 text-muted-foreground" />
-          <h2 className="text-xl font-semibold">No shopping list yet</h2>
-          <p className="text-muted-foreground max-w-xs">
+          <div className="w-16 h-16 rounded-full bg-rasa-mist flex items-center justify-center">
+            <ShoppingCart className="w-8 h-8 text-muted-foreground" />
+          </div>
+          <h2 className="font-serif text-xl font-bold text-rasa-ink">No shopping list yet</h2>
+          <p className="font-display text-sm text-muted-foreground max-w-xs">
             Generate a week plan first, then hit Generate to build your shopping list.
           </p>
         </div>
       )}
 
-      {/* Grouped list */}
+      {/* ── Grouped list ────────────────────────────────────────────── */}
       {Object.entries(grouped).map(([cat, items]) => (
-        <div key={cat} className="mb-6">
+        <div key={cat} className="mb-5">
+          {/* Category header */}
           <div className="flex items-center gap-2 mb-2">
             <span className="text-base">{CATEGORY_EMOJI[cat] ?? '📦'}</span>
-            <span className="text-sm font-semibold">{cat}</span>
-            <span className="text-xs text-muted-foreground">({items.filter((i) => !i.checked).length} left)</span>
+            <span className="text-sm font-display font-bold text-rasa-ink">{cat}</span>
+            <span className="text-xs font-code text-muted-foreground ml-1">
+              ({items.filter((i) => !i.checked).length} left)
+            </span>
           </div>
-          <Separator className="mb-2" />
 
-          <div className="space-y-0.5">
+          {/* Items card */}
+          <div className="rounded-2xl border border-rasa-stone bg-rasa-oat px-3 overflow-hidden">
             {items.map((item, idx) => (
               <ShoppingRow
                 key={idx}
@@ -282,12 +298,12 @@ export default function ShoppingPage() {
             ))}
           </div>
 
-          {/* Add item to category */}
+          {/* Add item inline */}
           {addingIn === cat ? (
             <div className="flex gap-2 mt-2">
               <Input
                 autoFocus
-                className="h-8 text-sm"
+                className="h-9 text-sm border-rasa-stone bg-rasa-oat font-display"
                 placeholder="Item name"
                 value={newItemName}
                 onChange={(e) => setNewItemName(e.target.value)}
@@ -296,12 +312,22 @@ export default function ShoppingPage() {
                   if (e.key === 'Escape') { setAddingIn(null); setNewItemName('') }
                 }}
               />
-              <Button size="sm" onClick={() => addItem(cat)}>Add</Button>
-              <Button size="sm" variant="ghost" onClick={() => { setAddingIn(null); setNewItemName('') }}>✕</Button>
+              <button
+                onClick={() => addItem(cat)}
+                className="text-sm font-display font-semibold bg-rasa-slate text-white rounded-xl px-3 py-1.5"
+              >
+                Add
+              </button>
+              <button
+                onClick={() => { setAddingIn(null); setNewItemName('') }}
+                className="text-sm font-display text-muted-foreground hover:text-rasa-ink px-2"
+              >
+                ✕
+              </button>
             </div>
           ) : (
             <button
-              className="mt-2 flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+              className="mt-2 flex items-center gap-1 text-xs font-display font-semibold text-muted-foreground hover:text-rasa-slate transition-colors"
               onClick={() => setAddingIn(cat)}
             >
               <Plus className="w-3.5 h-3.5" /> Add item

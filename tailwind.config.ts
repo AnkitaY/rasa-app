@@ -11,8 +11,11 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["var(--font-geist-sans)", ...fontFamily.sans],
-        mono: ["var(--font-geist-mono)", ...fontFamily.mono],
+        sans:    ["var(--font-geist-sans)", ...fontFamily.sans],
+        mono:    ["var(--font-geist-mono)", ...fontFamily.mono],
+        display: ["var(--font-nunito)", ...fontFamily.sans],
+        serif:   ["var(--font-playfair)", "Georgia", ...fontFamily.serif],
+        code:    ["var(--font-dm-mono)", ...fontFamily.mono],
       },
       colors: {
         background: "hsl(var(--background))",
@@ -46,14 +49,25 @@ const config: Config = {
           foreground: "hsl(var(--destructive-foreground))",
         },
         border: "hsl(var(--border))",
-        input: "hsl(var(--input))",
-        ring: "hsl(var(--ring))",
+        input:  "hsl(var(--input))",
+        ring:   "hsl(var(--ring))",
         chart: {
           "1": "hsl(var(--chart-1))",
           "2": "hsl(var(--chart-2))",
           "3": "hsl(var(--chart-3))",
           "4": "hsl(var(--chart-4))",
           "5": "hsl(var(--chart-5))",
+        },
+        // RASA Kinfolk tokens — use as bg-rasa-oat, text-rasa-slate, etc.
+        rasa: {
+          oat:    "#F6F1E9",
+          stone:  "#E0D8CC",
+          mist:   "#E8EDE4",
+          sprout: "#DFF0D4",
+          slate:  "#2C3E35",
+          ink:    "#1E2420",
+          fern:   "#4A6741",
+          terra:  "#B5735A",
         },
       },
       borderRadius: {

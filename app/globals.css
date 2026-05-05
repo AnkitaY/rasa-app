@@ -4,31 +4,42 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
+    /* ── RASA Kinfolk palette ─────────────────────────────────── */
+    --rasa-oat:    #F6F1E9;
+    --rasa-stone:  #E0D8CC;
+    --rasa-mist:   #E8EDE4;
+    --rasa-sprout: #DFF0D4;
+    --rasa-slate:  #2C3E35;
+    --rasa-ink:    #1E2420;
+    --rasa-fern:   #4A6741;
+    --rasa-terra:  #B5735A;
+
+    /* ── shadcn semantic tokens mapped to Kinfolk ─────────────── */
+    --background:         37 42% 94%;   /* oat */
+    --foreground:         140 9% 13%;   /* ink */
+    --card:               37 42% 94%;   /* oat */
+    --card-foreground:    140 9% 13%;   /* ink */
+    --popover:            37 42% 94%;   /* oat */
+    --popover-foreground: 140 9% 13%;   /* ink */
+    --primary:            150 17% 21%;  /* slate */
+    --primary-foreground: 37 42% 94%;   /* oat */
+    --secondary:          93 20% 91%;   /* mist */
+    --secondary-foreground: 150 17% 21%;
+    --muted:              93 20% 91%;   /* mist */
+    --muted-foreground:   150 10% 46%;  /* slate mid */
+    --accent:             16 38% 53%;   /* terra */
+    --accent-foreground:  37 42% 94%;   /* oat */
+    --destructive:        0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 10% 3.9%;
+    --border:             36 24% 84%;   /* stone */
+    --input:              36 24% 84%;   /* stone */
+    --ring:               150 17% 21%;  /* slate */
     --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
+    --chart-2: 106 23% 33%;
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
-    --radius: 0.5rem;
+    --chart-5: 16 38% 53%;
+    --radius: 0.75rem;
   }
 
   .dark {
@@ -72,4 +83,18 @@
   .text-balance {
     text-wrap: balance;
   }
+
+  /* Kinfolk serif headline */
+  .font-serif-display {
+    font-family: var(--font-playfair), Georgia, serif;
+  }
+
+  /* Health signal colours */
+  .text-fern  { color: var(--rasa-fern); }
+  .bg-fern    { background-color: var(--rasa-fern); }
+  .text-terra { color: var(--rasa-terra); }
+  .bg-terra   { background-color: var(--rasa-terra); }
+  .bg-sprout  { background-color: var(--rasa-sprout); }
+  .bg-oat     { background-color: var(--rasa-oat); }
+  .border-stone { border-color: var(--rasa-stone); }
 }
