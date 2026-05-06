@@ -1,561 +1,315 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { Recipe, WeekPlan, PlanSlot, DailyTotal } from '@/lib/types'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { getAnonId } from '@/lib/anon'
 import { cn } from '@/lib/utils'
-import {
-  CalendarDays,
-  RefreshCw,
-  Lock,
-  Unlock,
-  UtensilsCrossed,
-  AlertCircle,
-  Flame,
-} from 'lucide-react'
+import SwapSheet from '@/app/components/SwapSheet'
 
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-const MEAL_TYPES: Array<'brunch' | 'dinner'> = ['brunch', 'dinner']
+// ── Constants ─────────────────────────────────────────────────────────────────
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
-
-function proteinColor(protein: number): string {
-  if (protein >= 70) return 'text-rasa-fern'
-  if (protein >= 55) return 'text-yellow-600'
-  return 'text-rasa-terra'
+const DAY_ORDER: Record<string, number> = {
+  Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6,
 }
 
-function proteinBg(protein: number): string {
-  if (protein >= 70) return 'bg-rasa-sprout border-rasa-fern/30'
-  if (protein >= 55) return 'bg-yellow-50 border-yellow-200'
-  return 'bg-orange-50 border-orange-200'
+const DAY_LABELS: Record<string, string> = {
+  Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday',
+  Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday', Sun: 'Sunday',
 }
 
-function getSlot(slots: PlanSlot[], day: string, meal: 'brunch' | 'dinner'): PlanSlot | undefined {
-  return slots.find((s) => s.day === day && s.meal_type === meal)
+const TODAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date().getDay()]
+
+const VERDICT_LABELS: Record<string, string> = {
+  loved: 'Everyone loved it 🙌',
+  ok: 'It was fine 🤷',
+  skip: 'Won\'t make again',
 }
 
-function getDailyTotal(totals: DailyTotal[], day: string): DailyTotal | undefined {
-  return totals.find((t) => t.day === day)
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface MealWithRecipe {
+  id: string
+  day: string
+  recipe_name: string
+  reasoning: string | null
+  cooked: boolean
+  cooked_at: string | null
+  verdict: 'loved' | 'ok' | 'skip' | null
+  use_soon_priority: boolean
+  recipe_id: string | null
 }
 
-// Today's day abbreviation
-function todayAbbr(): string {
-  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date().getDay()]
+interface WeekPlanMeta {
+  id: string
+  week_start_date: string
 }
 
-// ─── swap modal ───────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-interface SwapModalProps {
-  open: boolean
-  slot: PlanSlot | null
-  recipes: Recipe[]
-  onClose: () => void
-  onSwap: (slot: PlanSlot, recipeId: string | null, recipeName: string, protein: number, carbs: number) => void
-  onLock: (slot: PlanSlot) => void
-  onEatingOut: (slot: PlanSlot) => void
+function formatDateRange(weekStart: string): string {
+  const start = new Date(weekStart)
+  const end = new Date(weekStart)
+  end.setDate(end.getDate() + 6)
+  const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' }
+  return `${start.toLocaleDateString('en-GB', opts)} – ${end.toLocaleDateString('en-GB', opts)}`
 }
 
-function SwapModal({ open, slot, recipes, onClose, onSwap, onLock, onEatingOut }: SwapModalProps) {
-  if (!slot) return null
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
-      <DialogContent className="sm:max-w-md max-h-[80vh] overflow-hidden flex flex-col bg-rasa-oat">
-        <DialogHeader>
-          <DialogTitle className="font-display font-bold text-rasa-ink">
-            Swap {slot.day} {slot.meal_type}
-          </DialogTitle>
-          <p className="text-sm font-display text-muted-foreground">
-            Currently: <span className="font-semibold text-rasa-ink">{slot.eating_out ? 'Eating Out' : (slot.recipe_name || 'Empty')}</span>
-          </p>
-        </DialogHeader>
-
-        {/* Quick actions */}
-        <div className="flex gap-2 flex-wrap pt-1">
-          <Button
-            variant={slot.locked ? 'default' : 'outline'}
-            size="sm"
-            className="font-display font-semibold"
-            onClick={() => { onLock(slot); onClose() }}
-          >
-            {slot.locked ? <Lock className="w-3 h-3 mr-1" /> : <Unlock className="w-3 h-3 mr-1" />}
-            {slot.locked ? 'Locked' : 'Lock slot'}
-          </Button>
-          <Button
-            variant={slot.eating_out ? 'default' : 'outline'}
-            size="sm"
-            className="font-display font-semibold"
-            onClick={() => { onEatingOut(slot); onClose() }}
-          >
-            <UtensilsCrossed className="w-3 h-3 mr-1" />
-            Eating out
-          </Button>
-        </div>
-
-        <div className="border-t border-rasa-stone pt-3 -mx-4 px-4 overflow-y-auto flex-1 space-y-1">
-          <p className="text-[10px] font-display font-bold uppercase tracking-widest text-muted-foreground mb-2">
-            Recipe Bank
-          </p>
-          {recipes.length === 0 && (
-            <p className="text-sm font-display text-muted-foreground py-4 text-center">No recipes yet.</p>
-          )}
-          {recipes.map((r) => {
-            const protein = r.macros_per_serving?.protein_g ?? 0
-            const carbs = r.macros_per_serving?.carbs_g ?? 0
-            const isActive = r.id === slot.recipe_id
-            return (
-              <button
-                key={r.id}
-                onClick={() => { onSwap(slot, r.id, r.name, protein, carbs); onClose() }}
-                className={cn(
-                  'w-full text-left rounded-xl px-3 py-2.5 transition-colors hover:bg-rasa-mist flex items-center justify-between gap-3',
-                  isActive && 'bg-rasa-mist border border-rasa-stone'
-                )}
-              >
-                <div>
-                  <p className="text-sm font-display font-semibold leading-tight text-rasa-ink">{r.name}</p>
-                  <p className="text-xs font-display text-muted-foreground mt-0.5">
-                    {r.cuisine_type?.replace('_', ' ')} · {r.meal_type}
-                  </p>
-                </div>
-                <div className="shrink-0 text-right">
-                  <p className={cn('text-xs font-code font-semibold', proteinColor(protein))}>{protein}g P</p>
-                  <p className="text-xs font-code text-muted-foreground">{carbs}g C</p>
-                </div>
-              </button>
-            )
-          })}
-        </div>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-// ─── main page ────────────────────────────────────────────────────────────────
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export default function PlannerPage() {
-  const [isPending, startTransition] = useTransition()
-  const [plan, setPlan] = useState<WeekPlan | null>(null)
-  const [slots, setSlots] = useState<PlanSlot[]>([])
-  const [dailyTotals, setDailyTotals] = useState<DailyTotal[]>([])
-  const [batchNotes, setBatchNotes] = useState<string[]>([])
-  const [recipes, setRecipes] = useState<Recipe[]>([])
-  const [swapSlot, setSwapSlot] = useState<PlanSlot | null>(null)
-  const [error, setError] = useState('')
-  const [loadingPlan, setLoadingPlan] = useState(true)
-  const [activeDay, setActiveDay] = useState<string>(todayAbbr())
+  const router = useRouter()
+  const [meals, setMeals] = useState<MealWithRecipe[]>([])
+  const [weekPlan, setWeekPlan] = useState<WeekPlanMeta | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [cookingId, setCookingId] = useState<string | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
+  const [swapMeal, setSwapMeal] = useState<MealWithRecipe | null>(null)
 
-  // Load recipes and latest plan on mount
   useEffect(() => {
-    const supabase = createClient()
-
-    Promise.all([
-      supabase.from('recipes').select('*').order('created_at', { ascending: false }),
-      supabase
-        .from('week_plans')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-    ]).then(([recipesRes, planRes]) => {
-      setRecipes((recipesRes.data as Recipe[]) ?? [])
-
-      if (planRes.data) {
-        const wp = planRes.data as WeekPlan
-        setPlan(wp)
-        const stored = wp.slots as unknown as { slots: PlanSlot[]; daily_totals: DailyTotal[]; batch_opportunities: Array<{ description: string }> }
-        setSlots(stored.slots ?? [])
-        setDailyTotals(stored.daily_totals ?? [])
-        setBatchNotes((stored.batch_opportunities ?? []).map((b) => b.description))
-      }
-      setLoadingPlan(false)
-    })
+    const anonId = getAnonId()
+    fetch(`/api/meals/current?anon_id=${encodeURIComponent(anonId)}`)
+      .then(r => r.json())
+      .then(({ week_plan, meals: raw }) => {
+        setWeekPlan(week_plan ?? null)
+        const sorted = (raw ?? []).sort(
+          (a: MealWithRecipe, b: MealWithRecipe) =>
+            (DAY_ORDER[a.day] ?? 99) - (DAY_ORDER[b.day] ?? 99)
+        )
+        setMeals(sorted)
+      })
+      .catch(() => {/* allow through */})
+      .finally(() => setLoading(false))
   }, [])
 
-  function recomputeDailyTotals(updatedSlots: PlanSlot[]) {
-    return DAYS.map((day) => {
-      const daySlots = updatedSlots.filter((s) => s.day === day && !s.eating_out)
-      const total_protein = daySlots.reduce((sum, s) => sum + (s.protein_g ?? 0), 0)
-      const total_carbs = daySlots.reduce((sum, s) => sum + (s.carbs_g ?? 0), 0)
-      return { day, total_protein, total_carbs, target_met: total_protein >= 70 }
-    })
+  function showToast(msg: string) {
+    setToast(msg)
+    setTimeout(() => setToast(null), 2500)
   }
 
-  async function handleGenerate() {
-    setError('')
-    const lockedSlots = slots
-      .filter((s) => s.locked || s.eating_out)
-      .map((s) => ({ day: s.day, meal_type: s.meal_type }))
+  async function handleMarkCooked(meal: MealWithRecipe) {
+    if (meal.cooked || cookingId) return
+    setCookingId(meal.id)
 
-    startTransition(async () => {
-      try {
-        const res = await fetch('/api/plans/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ locked_slots: lockedSlots }),
-        })
-        const data = await res.json()
-        if (!res.ok) { setError(data.error ?? 'Failed to generate plan'); return }
-
-        const wp = data.plan as WeekPlan
-        setPlan(wp)
-        const stored = wp.slots as unknown as { slots: PlanSlot[]; daily_totals: DailyTotal[]; batch_opportunities: Array<{ description: string }> }
-        const newSlots = stored.slots ?? []
-        setSlots(newSlots)
-        setDailyTotals(stored.daily_totals ?? recomputeDailyTotals(newSlots))
-        setBatchNotes((stored.batch_opportunities ?? []).map((b) => b.description))
-      } catch {
-        setError('Network error. Please try again.')
-      }
-    })
-  }
-
-  async function persistSlots(updatedSlots: PlanSlot[], updatedTotals: DailyTotal[]) {
-    if (!plan) return
     try {
-      await fetch('/api/plans/update', {
+      const res = await fetch('/api/meals/cooked', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          plan_id: plan.id,
-          slots: updatedSlots,
-          daily_totals: updatedTotals,
-          batch_opportunities: batchNotes.map((d) => ({ description: d })),
-        }),
+        body: JSON.stringify({ meal_id: meal.id }),
       })
+      if (!res.ok) throw new Error()
+
+      // Optimistic update
+      setMeals(prev =>
+        prev.map(m =>
+          m.id === meal.id
+            ? { ...m, cooked: true, cooked_at: new Date().toISOString() }
+            : m
+        )
+      )
+      showToast('Nice work. Dinner\'s done. 🍽')
+      setTimeout(() => router.push('/'), 1600)
     } catch {
-      // Non-blocking — UI already updated; silent fail is acceptable
+      showToast('Hmm, something went wrong. Try again?')
+    } finally {
+      setCookingId(null)
     }
   }
 
-  function handleSwap(slot: PlanSlot, recipeId: string | null, recipeName: string, protein: number, carbs: number) {
-    const updated = slots.map((s) =>
-      s.day === slot.day && s.meal_type === slot.meal_type
-        ? { ...s, recipe_id: recipeId, recipe_name: recipeName, protein_g: protein, carbs_g: carbs, eating_out: false }
-        : s
+  // ── Skeleton ─────────────────────────────────────────────────────────────────
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-p1-cream">
+        <div className="px-5 pt-12 pb-6">
+          <div className="h-7 bg-p1-surface rounded-lg w-32 animate-pulse" />
+          <div className="h-4 bg-p1-surface rounded w-40 mt-2 animate-pulse" />
+        </div>
+        <div className="px-5 space-y-3">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="h-28 bg-p1-surface rounded-2xl animate-pulse" />
+          ))}
+        </div>
+      </main>
     )
-    const updatedTotals = recomputeDailyTotals(updated)
-    setSlots(updated)
-    setDailyTotals(updatedTotals)
-    persistSlots(updated, updatedTotals)
   }
 
-  function handleLock(slot: PlanSlot) {
-    const updated = slots.map((s) =>
-      s.day === slot.day && s.meal_type === slot.meal_type ? { ...s, locked: !s.locked } : s
+  // ── Empty state ───────────────────────────────────────────────────────────────
+
+  if (!weekPlan || meals.length === 0) {
+    return (
+      <main className="min-h-screen bg-p1-cream flex flex-col">
+        <div className="px-5 pt-12 pb-6">
+          <h1 className="text-2xl font-ui font-bold text-p1-dark">This Week</h1>
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center px-8 pb-32 text-center gap-5">
+          <span className="text-5xl">📅</span>
+          <div>
+            <p className="text-base font-ui font-semibold text-p1-dark">
+              Nothing planned yet
+            </p>
+            <p className="text-sm text-p1-brown font-ui mt-1">
+              Your recipe bank fills up the moment you plan your first week.
+            </p>
+          </div>
+          <Link
+            href="/planner/generate"
+            className="px-6 py-3.5 rounded-xl bg-p1-terra text-white text-sm font-ui font-semibold"
+          >
+            Plan my week →
+          </Link>
+        </div>
+      </main>
     )
-    const updatedTotals = recomputeDailyTotals(updated)
-    setSlots(updated)
-    setDailyTotals(updatedTotals)
-    persistSlots(updated, updatedTotals)
   }
 
-  function handleEatingOut(slot: PlanSlot) {
-    const updated = slots.map((s) =>
-      s.day === slot.day && s.meal_type === slot.meal_type
-        ? { ...s, eating_out: !s.eating_out, recipe_id: null, recipe_name: 'Eating Out', protein_g: 0, carbs_g: 0 }
-        : s
-    )
-    const updatedTotals = recomputeDailyTotals(updated)
-    setSlots(updated)
-    setDailyTotals(updatedTotals)
-    persistSlots(updated, updatedTotals)
-  }
+  const uncooked = meals.filter(m => !m.cooked)
 
-  const hasLockedSlots = slots.some((s) => s.locked || s.eating_out)
-  const today = todayAbbr()
-  const activeDayTotal = getDailyTotal(dailyTotals, activeDay)
+  // ── Main view ─────────────────────────────────────────────────────────────────
 
   return (
-    <main className="min-h-screen bg-background px-4 py-8 max-w-6xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-        <div className="flex items-center gap-3">
-          <CalendarDays className="w-6 h-6 text-rasa-slate" />
-          <div>
-            <h1 className="font-serif text-2xl font-bold text-rasa-ink">Weekly Planner</h1>
-            {plan && (
-              <p className="text-xs font-display text-muted-foreground">
-                Week of {new Date(plan.week_start_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-              </p>
-            )}
-          </div>
+    <main className="min-h-screen bg-p1-cream">
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-p1-dark text-white text-sm font-ui font-medium px-5 py-3 rounded-2xl shadow-xl whitespace-nowrap">
+          {toast}
         </div>
-        <Button onClick={handleGenerate} disabled={isPending} className="font-display font-semibold">
-          {isPending ? (
-            <><span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />Planning…</>
-          ) : (
-            <><RefreshCw className="w-4 h-4 mr-2" />{plan ? (hasLockedSlots ? 'Regenerate (keeping locks)' : 'Regenerate Plan') : 'Generate Week Plan'}</>
+      )}
+
+      {/* Header */}
+      <div className="px-5 pt-12 pb-5 flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-ui font-bold text-p1-dark">This Week</h1>
+          {weekPlan.week_start_date && (
+            <p className="mt-0.5 text-sm text-p1-brown font-ui">
+              {formatDateRange(weekPlan.week_start_date)}
+            </p>
           )}
-        </Button>
+        </div>
+        {uncooked.length > 0 && (
+          <Link
+            href="/planner/generate?mode=regen"
+            className="text-xs font-ui font-medium text-p1-terra pt-1.5"
+          >
+            Rethink remaining →
+          </Link>
+        )}
       </div>
 
-      {error && (
-        <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2 mb-4">
-          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-          <span>{error}</span>
-        </div>
+      {/* Swap sheet */}
+      {swapMeal && (
+        <SwapSheet
+          meal={swapMeal}
+          open={!!swapMeal}
+          onClose={() => setSwapMeal(null)}
+          onSwapped={newName => {
+            setMeals(prev =>
+              prev.map(m =>
+                m.id === swapMeal.id
+                  ? { ...m, recipe_name: newName, swapped_from: m.recipe_name }
+                  : m
+              )
+            )
+            setSwapMeal(null)
+            showToast('Done — plan updated. 🔄')
+          }}
+        />
       )}
 
-      {/* Skeleton / empty state */}
-      {loadingPlan ? (
-        <div className="space-y-3 animate-pulse">
-          <div className="flex gap-2">
-            {DAYS.map((d) => <div key={d} className="flex-1 h-10 bg-rasa-stone rounded-full" />)}
-          </div>
-          <div className="grid grid-cols-8 gap-2">
-            {Array.from({ length: 16 }).map((_, i) => (
-              <div key={i} className="h-16 bg-rasa-stone rounded-xl" />
-            ))}
-          </div>
-        </div>
-      ) : slots.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
-          <CalendarDays className="w-14 h-14 text-muted-foreground" />
-          <h2 className="font-serif text-xl font-bold text-rasa-ink">No plan yet</h2>
-          <p className="font-display text-sm text-muted-foreground max-w-xs">
-            {recipes.length === 0
-              ? 'Add recipes to your recipe bank first, then generate a plan.'
-              : 'Hit Generate to build your 7-day meal plan.'}
-          </p>
-        </div>
-      ) : (
-        <>
-          {/* ── Day-strip pills ───────────────────────────────────────── */}
-          <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1 -mx-1 px-1">
-            {DAYS.map((day) => {
-              const total = getDailyTotal(dailyTotals, day)
-              const protein = total?.total_protein ?? 0
-              const isActive = day === activeDay
-              const isToday = day === today
-              const dotColor = protein >= 70
-                ? 'bg-rasa-fern'
-                : protein >= 55
-                ? 'bg-yellow-400'
-                : slots.some((s) => s.day === day)
-                ? 'bg-rasa-terra'
-                : 'bg-rasa-stone'
+      {/* Meal cards */}
+      <div className="px-5 space-y-3 pb-10">
+        {meals.map(meal => {
+          const isToday = meal.day === TODAY_ABBR
+          const isCooking = cookingId === meal.id
 
-              return (
-                <button
-                  key={day}
-                  onClick={() => setActiveDay(day)}
-                  className={cn(
-                    'flex flex-col items-center gap-1 px-3 py-2 rounded-full transition-all min-w-[3rem] shrink-0',
-                    isActive
-                      ? 'bg-rasa-slate text-white'
-                      : 'bg-rasa-mist text-muted-foreground hover:bg-rasa-stone'
-                  )}
-                >
-                  <span className={cn(
-                    'text-[10px] font-display font-bold uppercase tracking-wide',
-                    isToday && !isActive && 'text-rasa-fern'
-                  )}>
-                    {day}
-                  </span>
-                  <span className={cn('w-1.5 h-1.5 rounded-full', isActive ? 'bg-white/60' : dotColor)} />
-                </button>
-              )
-            })}
-          </div>
+          if (meal.cooked) {
+            // ── Cooked card ─────────────────────────────────────────────────
+            return (
+              <div
+                key={meal.id}
+                className="rounded-2xl bg-p1-forest-lt border border-p1-forest/20 px-4 py-4"
+              >
+                <p className="text-[11px] font-ui font-semibold text-p1-forest uppercase tracking-wider mb-1">
+                  {DAY_LABELS[meal.day] ?? meal.day} · Cooked ✓
+                </p>
+                <p className="text-base font-ui font-semibold text-p1-forest leading-snug">
+                  {meal.recipe_name}
+                </p>
+                {meal.verdict && (
+                  <p className="mt-1.5 text-xs font-ui text-p1-forest/70">
+                    {VERDICT_LABELS[meal.verdict] ?? meal.verdict}
+                  </p>
+                )}
+              </div>
+            )
+          }
 
-          {/* ── Active day protein summary ─────────────────────────────── */}
-          {activeDayTotal && (
-            <div className={cn(
-              'flex items-center gap-3 rounded-xl border px-3 py-2 mb-4 text-sm font-display',
-              proteinBg(activeDayTotal.total_protein)
-            )}>
-              <Flame className={cn('w-4 h-4', proteinColor(activeDayTotal.total_protein))} />
-              <span className={cn('font-bold', proteinColor(activeDayTotal.total_protein))}>
-                {activeDayTotal.total_protein}g protein
-              </span>
-              <span className="text-muted-foreground">·</span>
-              <span className="text-muted-foreground">{activeDayTotal.total_carbs}g carbs</span>
-              {activeDayTotal.target_met && (
-                <span className="ml-auto text-xs text-rasa-fern font-semibold">✓ target met</span>
+          // ── Active card ───────────────────────────────────────────────────
+          return (
+            <div
+              key={meal.id}
+              className={cn(
+                'rounded-2xl bg-p1-card shadow-sm overflow-hidden',
+                meal.use_soon_priority && 'border-l-[3px] border-p1-terra'
               )}
-            </div>
-          )}
-
-          {/* ── Meal slots for active day ─────────────────────────────── */}
-          <div className="space-y-2 mb-6">
-            {MEAL_TYPES.map((meal) => {
-              const slot = getSlot(slots, activeDay, meal)
-              const isEmpty = !slot
-              const isEatingOut = slot?.eating_out
-              const isLocked = slot?.locked
-
-              return (
-                <button
-                  key={meal}
-                  onClick={() => setSwapSlot(slot ?? { day: activeDay, meal_type: meal, recipe_id: null, recipe_name: '', protein_g: 0, carbs_g: 0 })}
-                  className={cn(
-                    'w-full text-left rounded-2xl border px-4 py-3.5 transition-all hover:shadow-sm',
-                    isEmpty && 'border-dashed border-rasa-stone bg-rasa-mist/50',
-                    isEatingOut && 'bg-orange-50 border-orange-200',
-                    !isEmpty && !isEatingOut && 'bg-rasa-oat border-rasa-stone hover:border-rasa-slate/40',
+            >
+              <div className="px-4 pt-4 pb-3">
+                {/* Day label */}
+                <p className={cn(
+                  'text-[11px] font-ui font-semibold uppercase tracking-wider mb-1',
+                  isToday ? 'text-p1-terra' : 'text-p1-brown'
+                )}>
+                  {isToday ? 'Tonight — ' : ''}{DAY_LABELS[meal.day] ?? meal.day}
+                  {meal.use_soon_priority && (
+                    <span className="ml-1.5 text-p1-terra">· Use soon</span>
                   )}
+                </p>
+
+                {/* Recipe name */}
+                <p className="text-base font-ui font-bold text-p1-dark leading-snug">
+                  {meal.recipe_name}
+                </p>
+
+                {/* Reasoning */}
+                {meal.reasoning && (
+                  <p className="mt-1.5 text-sm font-ui text-p1-brown italic leading-relaxed">
+                    {meal.reasoning}
+                  </p>
+                )}
+              </div>
+
+              {/* Action row */}
+              <div className="flex items-center gap-2 px-4 pb-4">
+                <button
+                  onClick={() => handleMarkCooked(meal)}
+                  disabled={!!cookingId}
+                  className="flex-1 py-2.5 rounded-xl bg-p1-terra text-white text-xs font-ui font-semibold tracking-wide disabled:opacity-50 transition-opacity active:opacity-80"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[10px] font-display font-bold uppercase tracking-widest text-muted-foreground mb-1 capitalize">
-                        {meal}
-                      </p>
-                      {isEmpty ? (
-                        <p className="text-sm font-display text-muted-foreground/60">Tap to add a meal</p>
-                      ) : isEatingOut ? (
-                        <div className="flex items-center gap-2">
-                          <UtensilsCrossed className="w-4 h-4 text-orange-500" />
-                          <span className="text-sm font-display font-semibold text-orange-700">Eating Out</span>
-                        </div>
-                      ) : (
-                        <p className="text-sm font-display font-semibold text-rasa-ink leading-snug">{slot?.recipe_name}</p>
-                      )}
-                    </div>
-                    <div className="flex flex-col items-end gap-1 shrink-0">
-                      {isLocked && <Lock className="w-3.5 h-3.5 text-muted-foreground" />}
-                      {slot && !slot.eating_out && (
-                        <>
-                          <span className={cn('text-xs font-code font-bold', proteinColor(slot.protein_g ?? 0))}>
-                            {slot.protein_g ?? 0}g P
-                          </span>
-                          <span className="text-[10px] font-code text-muted-foreground">
-                            {slot.carbs_g ?? 0}g C
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </div>
+                  {isCooking ? 'Saving…' : 'Mark as cooked'}
                 </button>
-              )
-            })}
-          </div>
 
-          {/* ── Full week overview (compact grid) ─────────────────────── */}
-          <details className="group">
-            <summary className="cursor-pointer text-xs font-display font-bold text-muted-foreground uppercase tracking-widest mb-3 select-none list-none flex items-center gap-2">
-              <span className="group-open:hidden">▸</span>
-              <span className="hidden group-open:inline">▾</span>
-              Full week overview
-            </summary>
-            <div className="overflow-x-auto -mx-4 px-4">
-              <div className="min-w-[560px]">
-                {/* Day headers */}
-                <div className="grid grid-cols-8 gap-1.5 mb-1.5">
-                  <div />
-                  {DAYS.map((day) => (
-                    <div key={day} className={cn(
-                      'text-center text-[10px] font-display font-bold uppercase tracking-wide py-1 rounded-md',
-                      day === today ? 'text-rasa-fern' : 'text-muted-foreground'
-                    )}>
-                      {day}
-                    </div>
-                  ))}
-                </div>
+                <button
+                  onClick={() => setSwapMeal(meal)}
+                  className="px-4 py-2.5 rounded-xl border border-p1-border bg-p1-card text-xs font-ui font-medium text-p1-dark active:opacity-70"
+                >
+                  Swap
+                </button>
 
-                {/* Meal rows */}
-                {MEAL_TYPES.map((meal) => (
-                  <div key={meal} className="grid grid-cols-8 gap-1.5 mb-1.5">
-                    <div className="flex items-center justify-end pr-2">
-                      <span className="text-[10px] font-display font-semibold text-muted-foreground capitalize">{meal}</span>
-                    </div>
-                    {DAYS.map((day) => {
-                      const slot = getSlot(slots, day, meal)
-                      const isEmpty = !slot
-                      const isEatingOut = slot?.eating_out
-                      return (
-                        <button
-                          key={day}
-                          onClick={() => { setActiveDay(day); setSwapSlot(slot ?? { day, meal_type: meal, recipe_id: null, recipe_name: '', protein_g: 0, carbs_g: 0 }) }}
-                          className={cn(
-                            'relative rounded-lg border px-1.5 py-2 text-left transition-all hover:shadow-sm min-h-[60px] w-full',
-                            isEmpty && 'border-dashed border-rasa-stone/60 bg-rasa-mist/30',
-                            isEatingOut && 'bg-orange-50 border-orange-200',
-                            !isEmpty && !isEatingOut && 'bg-rasa-oat border-rasa-stone',
-                            day === activeDay && 'ring-1 ring-rasa-slate'
-                          )}
-                        >
-                          {slot?.locked && <Lock className="absolute top-1 right-1 w-2.5 h-2.5 text-muted-foreground" />}
-                          {isEmpty ? null : isEatingOut ? (
-                            <UtensilsCrossed className="w-3 h-3 text-orange-500" />
-                          ) : (
-                            <div className="flex flex-col gap-0.5">
-                              <p className="text-[9px] font-display font-semibold leading-tight line-clamp-2 text-rasa-ink">{slot?.recipe_name}</p>
-                              <span className={cn('text-[9px] font-code font-bold', proteinColor(slot?.protein_g ?? 0))}>
-                                {slot?.protein_g ?? 0}P
-                              </span>
-                            </div>
-                          )}
-                        </button>
-                      )
-                    })}
-                  </div>
-                ))}
-
-                {/* Daily protein totals row */}
-                <div className="grid grid-cols-8 gap-1.5 mt-1">
-                  <div className="flex items-center justify-end pr-2">
-                    <Flame className="w-3 h-3 text-muted-foreground" />
-                  </div>
-                  {DAYS.map((day) => {
-                    const total = getDailyTotal(dailyTotals, day)
-                    const protein = total?.total_protein ?? 0
-                    return (
-                      <div key={day} className={cn('rounded-lg border px-1 py-1 text-center', proteinBg(protein))}>
-                        <p className={cn('text-[9px] font-code font-bold', proteinColor(protein))}>{protein}P</p>
-                      </div>
-                    )
-                  })}
-                </div>
+                {/* Recipe link */}
+                {meal.recipe_id && (
+                  <Link
+                    href={`/recipes/${meal.recipe_id}`}
+                    className="px-4 py-2.5 rounded-xl border border-p1-border bg-p1-card text-xs font-ui font-medium text-p1-dark active:opacity-70"
+                  >
+                    Recipe
+                  </Link>
+                )}
               </div>
             </div>
-
-            {/* Legend */}
-            <div className="flex gap-4 mt-3 text-xs font-display text-muted-foreground flex-wrap">
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rasa-fern inline-block" />≥70g protein</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-500 inline-block" />55–69g</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rasa-terra inline-block" />&lt;55g</span>
-            </div>
-          </details>
-
-          {/* Batch cook opportunities */}
-          {batchNotes.length > 0 && (
-            <Card className="mt-6 bg-rasa-mist border-rasa-stone">
-              <CardContent className="pt-4">
-                <p className="text-xs font-display font-bold uppercase tracking-widest text-muted-foreground mb-3">Batch Cook Opportunities</p>
-                <ul className="space-y-1.5">
-                  {batchNotes.map((note, i) => (
-                    <li key={i} className="text-sm font-display text-rasa-ink flex items-start gap-2">
-                      <span className="text-rasa-fern mt-0.5">•</span>
-                      {note}
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          )}
-        </>
-      )}
-
-      {/* Swap Modal */}
-      <SwapModal
-        open={swapSlot !== null}
-        slot={swapSlot}
-        recipes={recipes}
-        onClose={() => setSwapSlot(null)}
-        onSwap={handleSwap}
-        onLock={handleLock}
-        onEatingOut={handleEatingOut}
-      />
+          )
+        })}
+      </div>
     </main>
   )
 }

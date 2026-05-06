@@ -6,7 +6,9 @@ This file is read by every Claude Code session working on this project. Follow i
 
 ## 1. Project Overview
 
-Rasa is an AI-powered meal planning app for an Indian household. It manages a weekly meal plan, a recipe bank, a fridge/pantry inventory, a smart shopping list, and a nightly kitchen prep assistant ("Tonight's Kitchen") that walks the user through cooking dinner while preparing tomorrow's brunch in parallel. The stack is pre-auth (all rows use `user_id IS NULL` until auth is wired); UI is mobile-first at 390px.
+Rasa is an AI-powered meal planning app. It manages a weekly meal plan, a recipe bank, a pantry snapshot, a smart shopping list, and a nightly kitchen prep assistant ("Tonight's Kitchen"). The app is pre-auth — all rows use `user_id IS NULL`; identity is tracked via `rasa_anon_id` in localStorage. UI is mobile-first at 390px.
+
+**Phase 1 is complete.** Phase 0 features (inventory, kitchen, old planner) are preserved but not linked from the Phase 1 nav. Do not refactor them.
 
 ---
 
@@ -23,7 +25,7 @@ Rasa is an AI-powered meal planning app for an Indian household. It manages a we
 | Class utilities | clsx + tailwind-merge + class-variance-authority | latest |
 | Database | Supabase (@supabase/supabase-js + @supabase/ssr) | 2.105.1 / 0.10.2 |
 | AI | @anthropic-ai/sdk | ^0.92.0 |
-| Fonts | Local Geist (GeistVF.woff, GeistMonoVF.woff) | — |
+| Fonts | DM Sans (Google, variable `--font-dm-sans`, class `font-ui`) + local Geist fallback |
 | Deployment | Vercel | — |
 
 **AI model used in all prompts:** `claude-sonnet-4-20250514`
@@ -35,57 +37,66 @@ Rasa is an AI-powered meal planning app for an Indian household. It manages a we
 ```
 rasa-app/
 ├── app/
-│   ├── api/                        # All server-side route handlers
-│   │   ├── inventory/parse/        # POST — Claude parses Hinglish pantry text
-│   │   ├── inventory/save/         # POST (upsert) / PATCH / DELETE inventory items
-│   │   ├── kitchen/session/        # POST (generate) / GET (today) / PATCH (mark done)
-│   │   ├── plans/generate/         # POST — Claude generates 7-day meal plan
-│   │   ├── recipes/generate/       # POST — Claude generates a recipe
-│   │   └── shopping/generate/      # POST — aggregates plan → shopping list
-│   ├── components/                 # Shared client components used across pages
-│   │   ├── BottomNav.tsx           # Persistent 5-tab bottom navigation
-│   │   └── KitchenHomeCard.tsx     # Time-aware kitchen card for home screen
-│   ├── inventory/
-│   │   ├── page.tsx                # Inventory list (swipe-delete, inline edit)
-│   │   └── update/page.tsx         # 3-stage NLP update flow (input→review→saved)
-│   ├── kitchen/
-│   │   ├── page.tsx                # Tonight's Kitchen + step-by-step cook mode
-│   │   └── morning/page.tsx        # Morning finish-steps view
+│   ├── api/
+│   │   ├── inventory/parse/           # POST — Claude parses Hinglish pantry text (Phase 0)
+│   │   ├── inventory/save/            # POST/PATCH/DELETE inventory items (Phase 0)
+│   │   ├── kitchen/session/           # POST/GET/PATCH cooking session (Phase 0)
+│   │   ├── meals/
+│   │   │   ├── cooked/route.ts        # PATCH { meal_id } → cooked=true
+│   │   │   ├── current/route.ts       # GET ?anon_id → meals for latest plan
+│   │   │   ├── swap/route.ts          # POST (3 alternatives) / PATCH (apply swap)
+│   │   │   └── verdict/route.ts       # PATCH { meal_id, verdict?, dismiss? }
+│   │   ├── plans/
+│   │   │   ├── generate/              # POST — Phase 0 plan generator (legacy)
+│   │   │   └── generate-v2/route.ts   # POST — Phase 1 plan generator (active)
+│   │   ├── preferences/
+│   │   │   ├── get/route.ts           # GET ?anon_id → preferences row or null
+│   │   │   └── save/route.ts          # POST { anon_id, ...fields } → upsert
+│   │   ├── recipes/
+│   │   │   ├── generate/              # POST — Claude generates a single recipe (Phase 0)
+│   │   │   └── import/route.ts        # POST { url } → Claude structures → save to DB
+│   │   └── shopping/
+│   │       └── generate/route.ts      # POST { anon_id } → grouped shopping list
+│   ├── components/
+│   │   ├── BottomNav.tsx              # Phase 1 dark nav — Home/Planner/Pantry/Shopping/Recipes
+│   │   ├── KitchenHomeCard.tsx        # Phase 0 kitchen card (not in Phase 1 nav)
+│   │   ├── OnboardingGuard.tsx        # Redirect to /onboarding if no prefs row
+│   │   └── SwapSheet.tsx             # 2-step slide-up: reason → 3 alternatives
+│   ├── inventory/                     # Phase 0 — not linked from Phase 1 nav
+│   ├── kitchen/                       # Phase 0 — not linked from Phase 1 nav
+│   ├── onboarding/
+│   │   ├── page.tsx                   # Q1: dietary rules
+│   │   ├── who-for/page.tsx           # Q2: who are you cooking for
+│   │   └── cuisine/page.tsx           # Q3: primary + secondary cuisine → /planner/generate
+│   ├── pantry/
+│   │   └── page.tsx                   # Last pantry input + update field + regen CTA
 │   ├── planner/
-│   │   └── page.tsx                # 7-day meal plan grid with swap modal
+│   │   ├── page.tsx                   # Phase 1 planner — meals table, SwapSheet, no macros
+│   │   └── generate/page.tsx          # 3-field form → rotating messages → stagger reveal
+│   ├── profile/
+│   │   └── page.tsx                   # Preferences editor (Block 1 + Block 2), ⚙ from Home
 │   ├── recipes/
-│   │   ├── page.tsx                # Recipe bank grid
-│   │   ├── [id]/page.tsx           # Recipe detail (ingredients + steps)
-│   │   ├── add/generate/page.tsx   # AI recipe generation form
-│   │   └── review/page.tsx         # Inline-editable recipe review before save
+│   │   ├── page.tsx                   # Recipe bank — cuisine filters, search, Phase 1 style
+│   │   ├── [id]/page.tsx              # Recipe detail — dark header, steps_v2, prep_ahead
+│   │   ├── add/generate/page.tsx      # AI recipe generation (Phase 0)
+│   │   ├── add/import/page.tsx        # Import from URL
+│   │   └── add/manual/page.tsx        # Manual recipe entry
 │   ├── shopping/
-│   │   └── page.tsx                # Shopping list with per-category checkboxes
-│   ├── fonts/                      # Local Geist font files
-│   ├── globals.css                 # HSL CSS variables for Tailwind theming
-│   ├── layout.tsx                  # Root layout — wraps all pages, mounts BottomNav
-│   └── page.tsx                    # Home screen
+│   │   └── page.tsx                   # Auto-generates on mount, check-off items, copy list
+│   ├── globals.css                    # Phase 0 HSL vars + Phase 1 p1-* tokens
+│   ├── layout.tsx                     # Root layout — DM Sans font, OnboardingGuard, BottomNav
+│   └── page.tsx                       # Home V2 — hero card, feedback card, week strip
 ├── components/
-│   └── ui/                         # shadcn/ui components (do not edit manually)
-│       ├── badge.tsx
-│       ├── button.tsx
-│       ├── card.tsx
-│       ├── checkbox.tsx
-│       ├── dialog.tsx
-│       ├── dropdown-menu.tsx
-│       ├── input.tsx
-│       ├── label.tsx
-│       ├── select.tsx
-│       ├── separator.tsx
-│       └── textarea.tsx
+│   └── ui/                            # shadcn/ui components (do not edit manually)
 ├── lib/
-│   ├── types.ts                    # All shared TypeScript interfaces
-│   ├── utils.ts                    # cn() helper (clsx + tailwind-merge)
+│   ├── anon.ts                        # getAnonId() — reads/writes rasa_anon_id in localStorage
+│   ├── types.ts                       # All shared TypeScript interfaces
+│   ├── utils.ts                       # cn() helper
 │   └── supabase/
-│       ├── client.ts               # Browser client (createBrowserClient)
-│       ├── server.ts               # Server client (createServerClient + SSR cookies)
-│       └── admin.ts                # Service-role admin client (bypasses RLS)
-├── .env.local                      # Never commit — see §8 for required vars
-├── CLAUDE.md                       # This file
+│       ├── client.ts                  # Browser client
+│       ├── server.ts                  # Server client (SSR cookies)
+│       └── admin.ts                   # Service-role admin client (bypasses RLS)
+├── CLAUDE.md
 ├── next.config.mjs
 ├── tailwind.config.ts
 └── tsconfig.json
@@ -93,278 +104,336 @@ rasa-app/
 
 ---
 
-## 4. Existing Patterns
+## 4. Phase 1 Design Tokens
+
+All Phase 1 UI uses `p1-*` Tailwind tokens. **Never rename** them — Phase 0 Kitchen files use the original `rasa-*` tokens and must not break.
+
+```
+p1-cream        #FAF7F2   — every page background
+p1-card         #FFFFFF   — card bg (lifts off cream)
+p1-surface      #EDE0D0   — chips, selected bg, skeleton placeholders
+p1-terra        #C4522A   — hero card, primary CTAs, active nav dot, timing tips
+p1-terra-lt     #F5E6DF   — selected chip fill, terra hover state
+p1-forest       #2D5B3F   — cooked state, success, doneness tips
+p1-forest-lt    #E2EDE6   — cooked card bg tint
+p1-brown        #6B4226   — all secondary text, labels, metadata
+p1-dark         #2B1C12   — nav bar bg, page titles, recipe header bg
+p1-border       #DED2C2   — standard card/input borders
+p1-border-lt    #EDE0D0   — light dividers, row separators
+```
+
+**Semantic rules:**
+- Terra = hero card (always), primary CTAs, active chips/nav dot, "tonight" labels, timing tips
+- Forest = cooked state, "Everyone loved it", doneness tips, success confirmations
+- Brown = all secondary text (never Tailwind `gray-*`)
+- Dark = nav bg, page titles, recipe header bg
+- Never use terra for Forest's purposes, or vice versa
+
+**Font:** `font-ui` = DM Sans. Applied via `className="font-ui"`. Variable `--font-dm-sans` loaded in `app/layout.tsx`.
+
+---
+
+## 5. Phase 1 Navigation
+
+**5 tabs:** Home / Planner / Pantry / Shopping / Recipes
+
+| Tab | Route | Icon |
+|---|---|---|
+| Home | `/` | Home (lucide) |
+| Planner | `/planner` | CalendarDays |
+| Pantry | `/pantry` | ShoppingBasket |
+| Shopping | `/shopping` | ShoppingCart |
+| Recipes | `/recipes` | BookOpen |
+
+- Nav bg: `#2B1C12` (p1-dark) via inline style
+- Active: `text-p1-terra` + 4px terra dot below icon
+- Inactive: `rgba(255,255,255,0.4)`
+- Profile is **not** in nav — accessed via ⚙ icon in Home header, route `/profile`
+
+---
+
+## 6. Phase 1 Identity (pre-auth)
+
+All Phase 1 rows have `user_id IS NULL`. Identity is tracked by `anon_id`:
+
+```ts
+import { getAnonId } from '@/lib/anon'
+const anonId = getAnonId()  // reads/creates rasa_anon_id in localStorage — CLIENT ONLY
+```
+
+**Never call `getAnonId()` in server components or route handlers** — pass `anon_id` in the request body from the client.
+
+---
+
+## 7. Database Schema
+
+### Phase 1 tables
+
+```sql
+user_preferences
+  id, anon_id (unique), dietary_rules (text), who_cooking_for (text),
+  primary_cuisine (text), secondary_cuisines (text[]), skill_level (text),
+  weeknight_budget (text), goals (text[]), banned_ingredients (text),
+  cook_days_per_week (int, default 5), last_pantry_input (text), created_at
+
+meals
+  id, week_plan_id (FK → week_plans.id), day (text), meal_type (text, default 'dinner'),
+  recipe_name (text), eating_out (bool), serve_with (text), reasoning (text),
+  cooked (bool), cooked_at (timestamptz), swapped_from (text), verdict (text),
+  verdict_shown (bool), notes (text), use_soon_priority (bool), created_at
+```
+
+### Phase 0 / altered tables
+
+```sql
+recipes
+  id, user_id, name, cuisine_type, meal_type, servings, cook_time_minutes,
+  ingredients (jsonb: [{name, quantity, unit}]),
+  steps (jsonb: string[]),                          -- legacy
+  steps_v2 (jsonb: [{instruction, tip_type?, tip_text?}]),  -- Phase 1
+  prep_ahead (jsonb: [{task, time_sensitive}]),
+  is_complete_meal (bool, default true),
+  source_type (text), source_url (text), batch_cookable (bool)
+
+week_plans
+  id, user_id, anon_id, week_start_date,
+  slots (jsonb: {slots: PlanSlot[], daily_totals: [], batch_opportunities: []}),
+  pantry_snapshot (text), week_context (text), use_soon_text (text)
+
+inventory_items, shopping_lists, cooking_sessions  -- Phase 0, untouched
+```
+
+**`week_plans.slots` format:** The JSONB value is a full GeneratedPlan object: `{ slots: PlanSlot[], daily_totals: [], batch_opportunities: [] }`. The Kitchen feature reads `week_plan.slots.slots`. **Never** store a flat `PlanSlot[]` directly.
+
+**Day abbreviations in slots:** Always use 3-letter format: `Mon`, `Tue`, `Wed`, `Thu`, `Fri`, `Sat`, `Sun`.
+
+---
+
+## 8. Phase 1 API Routes
+
+### Preferences
+
+| Route | Method | Body / Params | Returns |
+|---|---|---|---|
+| `/api/preferences/get` | GET | `?anon_id=<uuid>` | `{ preferences }` or `{ preferences: null }` |
+| `/api/preferences/save` | POST | `{ anon_id, ...any fields }` | `{ ok }` — upserts partial update |
+
+### Plans
+
+| Route | Method | Body | Returns |
+|---|---|---|---|
+| `/api/plans/generate-v2` | POST | `{ anon_id, pantry_input, week_context?, use_soon? }` | `{ ok, week_plan_id, meals[], recipe_ids }` |
+
+### Meals
+
+| Route | Method | Body / Params | Returns |
+|---|---|---|---|
+| `/api/meals/current` | GET | `?anon_id=<uuid>` | `{ meals[] }` with recipe_id enrichment |
+| `/api/meals/cooked` | PATCH | `{ meal_id }` | `{ ok }` |
+| `/api/meals/swap` | POST | `{ meal_id, reason, ingredient?, free_text? }` | `{ alternatives[] }` |
+| `/api/meals/swap` | PATCH | `{ meal_id, chosen }` | `{ meal }` |
+| `/api/meals/verdict` | PATCH | `{ meal_id, verdict? }` or `{ meal_id, dismiss: true }` | `{ ok }` |
+
+### Shopping
+
+| Route | Method | Body | Returns |
+|---|---|---|---|
+| `/api/shopping/generate` | POST | `{ anon_id }` | `{ groups: Record<category, ShoppingListItem[]>, total }` |
+
+Shopping groups: `Produce → Protein → Dairy → Spices → Pantry → Other`
+
+### Recipes
+
+| Route | Method | Body | Returns |
+|---|---|---|---|
+| `/api/recipes/import` | POST | `{ url }` | `{ ok, recipe: { id, name } }` |
+
+---
+
+## 9. Core Patterns
 
 ### Supabase client usage
 - **Browser (client components):** `import { createClient } from '@/lib/supabase/client'`
-- **Server route handlers:** Use BOTH clients in every route:
-  ```ts
-  const admin = createAdminClient()   // all DB writes/reads
-  const anon  = createClient()        // auth.getUser() only
-  const { data: { user } } = await anon.auth.getUser()
-  ```
-- **Never** use the server client (`lib/supabase/server.ts`) for DB writes — always use admin client in route handlers.
+- **Route handlers:** `import { createAdminClient } from '@/lib/supabase/admin'` — use for all DB reads and writes
+- **Never** use the server client (`lib/supabase/server.ts`) for DB writes
 
-### Pre-auth RLS pattern
-All tables allow `user_id IS NULL` rows for pre-login development. The query pattern for user-scoped reads is:
+### Pre-auth anon_id pattern (route handlers)
 ```ts
-const q = admin.from('table').select('*')
-const { data } = await (
-  user?.id
-    ? q.or(`user_id.eq.${user.id},user_id.is.null`)
-    : q.is('user_id', null)   // NOT .or('user_id.eq.null,...') — that sends "null" as UUID string
-)
+// Body: { anon_id?: string }
+const { data } = await admin
+  .from('table')
+  .select('*')
+  .eq('anon_id', anon_id)
+  .maybeSingle()
 ```
 
-### Claude API calls (all route handlers)
+### Claude API calls
 ```ts
 import Anthropic from '@anthropic-ai/sdk'
 const anthropic = new Anthropic()
 const message = await anthropic.messages.create({
   model: 'claude-sonnet-4-20250514',
-  max_tokens: 1024,
+  max_tokens: 8192,
   messages: [{ role: 'user', content: prompt }],
 })
 const raw = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
-const jsonMatch = raw.match(/\{[\s\S]*\}/)   // strip any markdown wrapper
-const parsed = JSON.parse(jsonMatch[0])
+const match = raw.match(/\{[\s\S]*\}/)
+const parsed = JSON.parse(match![0])
 ```
 
-### State management
-No global store. All state is local `useState` + `useTransition` for async actions. Data flows from Supabase → component state on mount, and is written back via `fetch()` to API routes.
+### Async data fetching in client components
+Use `async function load()` inside `useEffect` — never chain `.finally()` on a Supabase PromiseLike:
+```tsx
+useEffect(() => {
+  async function load() {
+    try {
+      const { data } = await createClient().from('table').select('*').single()
+      if (data) setData(data)
+    } catch { /* ignore */ }
+    finally { setLoading(false) }
+  }
+  load()
+}, [id])
+```
 
-### Component structure
-- Pages are self-contained. Sub-components are defined as functions in the same file unless they are reused across pages (in which case they live in `app/components/`).
-- UI primitives come from `components/ui/` (shadcn). Never edit those files directly.
-- Every AI-trigger button uses `useTransition` with a spinner state:
-  ```tsx
-  const [isPending, startTransition] = useTransition()
-  // button: disabled={isPending}
-  // label: isPending ? <spinner /> : 'Generate'
-  ```
+### Loading skeletons
+```tsx
+if (loading) {
+  return (
+    <main className="min-h-screen bg-p1-cream">
+      <div className="px-5 pt-12 pb-6">
+        <div className="h-7 w-40 bg-p1-surface rounded animate-pulse" />
+      </div>
+      <div className="px-5 space-y-4">
+        {[...Array(3)].map((_, i) => (
+          <div key={i} className="h-36 bg-p1-surface rounded-2xl animate-pulse" />
+        ))}
+      </div>
+    </main>
+  )
+}
+```
 
-### Error display pattern
+### Error display (Phase 1 tone)
 ```tsx
 {error && (
-  <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
-    <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-    <span>{error}</span>
+  <div className="mx-5 mb-5 px-4 py-3 rounded-2xl bg-p1-card border border-p1-border-lt">
+    <p className="text-sm font-ui text-p1-brown">{error}</p>
   </div>
 )}
 ```
 
-### Skeleton loading pattern
-Every page that loads async data must show a skeleton before data arrives. Pattern:
-```tsx
-{loading && (
-  <div className="space-y-4 animate-pulse">
-    <div className="h-28 bg-muted rounded-xl" />
-    <div className="h-16 bg-muted rounded-lg" />
-  </div>
-)}
-{!loading && data.length === 0 && <EmptyState />}
-{!loading && data.length > 0 && <ActualContent />}
-```
+### SwapSheet
+- Lives at `app/components/SwapSheet.tsx`
+- Built on `@base-ui/react/dialog` primitives — no Sheet component exists in base-nova
+- 2 steps: reason → alternatives; slide-up animation via inline `@keyframes swapSlideUp`
+- Props: `meal: Meal`, `onSwapped: (updatedMeal: Meal) => void`, `onClose: () => void`
 
-### Navigation
-Use `useRouter().push('/path')` — never `<Link asChild>` (breaks with base-nova). The `BottomNav` uses `<Link>` directly (no asChild).
-
-### Naming conventions
-- Files: kebab-case directories, PascalCase component files in `app/components/`
-- API routes: REST verbs map to HTTP methods in the same `route.ts` file
-- Types: PascalCase interfaces in `lib/types.ts` — add new types there, never inline
-- CSS: Tailwind only, no CSS modules, no styled-components
+### State management
+No global store. All state is local `useState`. Data flows Supabase → component state on mount, written back via `fetch()` to API routes.
 
 ---
 
-## 5. Phase-0 Feature Inventory
+## 10. Tone of Voice
 
-### Screens
+Every string in the UI — labels, empty states, errors, confirmations — must follow these rules:
 
-| Route | File | Description |
-|---|---|---|
-| `/` | `app/page.tsx` | Home — greeting, macro bars, today's meals, kitchen card, quick actions |
-| `/recipes` | `app/recipes/page.tsx` | Recipe bank grid, clickable cards |
-| `/recipes/[id]` | `app/recipes/[id]/page.tsx` | Recipe detail — macros, ingredients, numbered steps |
-| `/recipes/add/generate` | `app/recipes/add/generate/page.tsx` | AI recipe generation (single-word input guardrail) |
-| `/recipes/review` | `app/recipes/review/page.tsx` | Inline-edit review before saving to Supabase |
-| `/planner` | `app/planner/page.tsx` | 7-day grid, protein totals, swap modal, lock/eating-out |
-| `/inventory` | `app/inventory/page.tsx` | Use Soon / Fridge / Freezer / Pantry, swipe-delete, inline edit |
-| `/inventory/update` | `app/inventory/update/page.tsx` | NLP update: input → review (checklist) → saved |
-| `/shopping` | `app/shopping/page.tsx` | Grouped shopping list, checkboxes, add item, copy to clipboard |
-| `/kitchen` | `app/kitchen/page.tsx` | Tonight's session, step-by-step cook mode, batch opportunities |
-| `/kitchen/morning` | `app/kitchen/morning/page.tsx` | Morning finish-steps view, mark brunch done |
-
-### Shared Components
-
-| Component | File | Description |
-|---|---|---|
-| `BottomNav` | `app/components/BottomNav.tsx` | Fixed 5-tab nav: Home/Plan/Recipes/Fridge/Shop |
-| `KitchenHomeCard` | `app/components/KitchenHomeCard.tsx` | Time-aware kitchen card (preview <5pm, full card ≥5pm) |
-
-### API Routes
-
-| Route | Methods | Description |
-|---|---|---|
-| `/api/recipes/generate` | POST | Claude → recipe JSON → save to `recipes` |
-| `/api/plans/generate` | POST | Claude → 7-day plan JSON → save to `week_plans` |
-| `/api/inventory/parse` | POST | Claude → parses Hinglish text → `ParsedInventoryItem[]` |
-| `/api/inventory/save` | POST / PATCH / DELETE | Smart-merge upsert / field update / delete inventory items |
-| `/api/shopping/generate` | POST | Aggregate ingredients → subtract inventory → save `shopping_lists` |
-| `/api/kitchen/session` | POST / GET / PATCH | Generate/load/complete today's cooking session |
-
-### Supabase Tables
-
-| Table | Key columns |
+| ✓ Write like this | ✕ Never write like this |
 |---|---|
-| `recipes` | id, user_id, name, cuisine_type, meal_type, servings, cook_time_minutes, ingredients (jsonb), steps (jsonb), macros_per_serving (jsonb), batch_cookable |
-| `week_plans` | id, user_id, week_start_date, slots (jsonb: `{slots, daily_totals, batch_opportunities}`) |
-| `inventory_items` | id, user_id, name, quantity, unit, location (fridge/freezer/pantry), use_soon, low_stock |
-| `shopping_lists` | id, user_id, week_plan_id, items (jsonb: `Record<category, ShoppingListItem[]>`) |
-| `cooking_sessions` | id, user_id, week_plan_id, session_date, dinner_recipe_id, dinner_recipe_name, brunch_recipe_id, brunch_recipe_name, session_duration_minutes, prep_tasks (jsonb), tomorrow_finish_steps (jsonb), batch_opportunities (jsonb), brunch_done |
+| "Hmm, something went wrong. Give it one more try?" | "Error: Request failed. Please try again." |
+| "Your week is sorted. 5 dinners, zero decision fatigue." | "Meal plan generated successfully." |
+| "Anything we should never put on the menu?" | "Please select your dietary restrictions." |
+| "Your recipe bank fills up the moment you plan your first week." | "No recipes found. Add recipes to get started." |
 
-All tables: RLS enabled, policy `auth.uid() = user_id OR user_id IS NULL`, `GRANT SELECT,INSERT,UPDATE,DELETE TO anon, authenticated, service_role`.
-
----
-
-## 6. Commands
-
-```bash
-# Development
-npm run dev          # Start dev server at localhost:3000
-
-# Production build (run before every deploy to catch errors)
-npm run build
-
-# Linting
-npm run lint
-
-# Type check only (no emit)
-npx tsc --noEmit
-
-# Deploy to Vercel (must be logged in: npx vercel login)
-npx vercel --prod --yes
-
-# Add an env var to Vercel
-npx vercel env add VAR_NAME production
-```
-
-There are no tests. `npm test` does not exist.
+- Use contractions. Active voice. Short sentences.
+- Never say "successfully", "Error:", or "failed".
+- No guilt. No jargon.
 
 ---
 
-## 7. What NOT To Do
+## 11. What NOT To Do
 
-### shadcn v4 / base-nova specifics (will break the build)
-- **Never use `asChild` prop** — shadcn 4.6 uses `@base-ui/react`, not Radix UI. `asChild` does not exist and causes TypeScript errors.
-- **Never wrap `<Button>` inside `<DropdownMenuTrigger>`** — base-nova's trigger already renders `<button>`, nesting another button is invalid HTML. Instead apply `className={buttonVariants({ variant: 'default' })}` directly on the trigger.
-- **Never import from `"shadcn/tailwind.css"`** — that is Tailwind v4 syntax, incompatible with this project's Tailwind v3. globals.css uses standard `@tailwind base/components/utilities` + HSL CSS variables.
+### shadcn v4 / base-nova
+- **Never use `asChild` prop** — `@base-ui/react` doesn't have it
+- **Never wrap `<Button>` inside `<DropdownMenuTrigger>`** — apply `buttonVariants()` className directly on the trigger
+- **Never import from `"shadcn/tailwind.css"`** — Tailwind v4 syntax, incompatible with this project's v3
 
-### Supabase gotchas
-- **Never query `.or('user_id.eq.null,...')`** — passes the string `"null"` as a UUID, causes `invalid input syntax for type uuid` error. Use `.is('user_id', null)` for the no-auth branch.
-- **Never write to DB from server components** — use route handlers with `createAdminClient()`.
-- **Never rely on RLS + anon key for writes** — the `sb_secret_` format service role key can't decode its JWT role claim in supabase-js. Always use `createAdminClient()` for all DB mutations in route handlers.
+### Supabase
+- **Never query `.or('user_id.eq.null,...')`** — passes `"null"` as a UUID string, causes a uuid parse error. Use `.is('user_id', null)` or `.eq('anon_id', anon_id)` instead
+- **Never write to DB from server components** — use route handlers with `createAdminClient()`
+- **Never chain `.finally()` on a Supabase PromiseLike** — use `async/await` with try/catch/finally inside `useEffect`
+
+### ESLint (build will fail)
+- Unused variables — remove them; prefixing with `_` only works for function parameters
+- Unescaped apostrophes in JSX — use `&apos;`
+- Ternary as a standalone statement — use `if/else` instead (ESLint `no-unused-expressions`)
+- Route handler `request` param — omit entirely if the body is never read
 
 ### Next.js
-- **Never import `{ Geist }` from `"next/font/google"`** — that font export doesn't exist in Next.js 14 (it was added in v15). Use the local font files already in `app/fonts/`.
-- **Always run `npm run build` before committing** — ESLint runs at build time and unused vars / unescaped entities fail the build.
-
-### Common ESLint failures at build time
-- Unused variables: prefix with `_` only works for function params; for `useState` destructuring, remove the unused variable entirely
-- Unescaped apostrophes in JSX: use `&apos;` or `{''}`
-- Route handlers: if no request body is read, omit the `request` param entirely (don't name it `_request` — ESLint still flags it)
+- **Never import `{ Geist }` from `"next/font/google"`** — doesn't exist in Next.js 14. Local font files in `app/fonts/` are used instead.
+- **Always run `npm run build` before committing** — ESLint runs at build time
 
 ### Architecture
-- **No global state library** — don't introduce Redux, Zustand, or Context for features that don't need it. Local state has been sufficient for all Phase-0 features.
-- **No CSS modules or styled-components** — Tailwind only.
-- **Don't edit `components/ui/` files** — they are managed by shadcn CLI. Re-run `npx shadcn add <component>` to update them.
-
-### Known technical debt
-- No auth wired yet — all rows are `user_id = null`. RLS policies allow this via `OR user_id IS NULL`.
-- Day abbreviations in `week_plans.slots` are 3-letter (`Mon`, `Tue`, ..., `Sun`) — any code matching day names must use this format, not full names.
-- Cook mode prep task matching uses fuzzy keyword overlap between `parallel_with` and step text. It works for most cases but can miss matches on short or uncommon words.
-- No error boundary — unhandled promise rejections in `useEffect` can cause silent failures on initial load.
+- No global state library (no Redux, Zustand, Context)
+- No CSS modules — Tailwind only
+- Don't edit `components/ui/` — managed by shadcn CLI
+- `getAnonId()` is client-side only — never call it in route handlers
 
 ---
 
-## 8. Environment Variables
-
-Required in `.env.local` (local) and in Vercel project settings (production):
+## 12. Environment Variables
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-jwt>
-SUPABASE_SERVICE_ROLE_KEY=<service-role-secret>   # sb_secret_... format
+SUPABASE_SERVICE_ROLE_KEY=<service-role-secret>
 ANTHROPIC_API_KEY=sk-ant-api03-...
 ```
 
-- `NEXT_PUBLIC_*` vars are exposed to the browser — safe for Supabase URL and anon key.
-- `SUPABASE_SERVICE_ROLE_KEY` and `ANTHROPIC_API_KEY` are server-only — never reference them in client components.
 - Supabase project ID: `hdzzmeeflrtccxupxzhn`
-- Vercel project: `aikanshs-projects/rasa-app` — live at `https://rasa-app-woad.vercel.app`
+- Vercel project: `aikanshs-projects/rasa-app`
 
 ---
 
-## 9. Git Conventions
+## 13. Commands
 
-**Remote:** `https://github.com/AnkitaY/rasa-app.git` (branch: `master`)
+```bash
+npm run dev          # Dev server at localhost:3000
+npm run build        # Production build — run before every commit
+npm run lint         # ESLint only
+npx tsc --noEmit     # Type check only
+npx vercel --prod --yes   # Deploy to Vercel
+```
 
-**Commit message format** (established pattern from this project):
+---
+
+## 14. Git Conventions
+
+**Commit message format:**
 ```
 <type>: <short imperative description>
-
-<optional body — what and why, not how>
 
 Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
 ```
 
-Types used: `feat`, `fix`, `chore`
+Types: `feat`, `fix`, `chore`
 
-**Examples from this repo:**
-```
-feat: Feature F7 — Tonight's Kitchen
-fix: use abbreviated day names (Mon/Tue) to match week_plans slots format
-fix: nav z-index + cook mode shows only matched prep tasks per step
-feat: Phase 0 complete — full RASA loop working
-```
+**Workflow:** `npm run build` → stage specific files → commit → push → `npx vercel --prod --yes`
 
-**Workflow:**
-1. `npm run build` — must pass cleanly before committing
-2. `git add <specific files>` — never `git add -A` blindly (avoid committing `.env.local`)
-3. `git commit -m "..."` using HEREDOC for multiline messages
-4. `git push`
-5. `npx vercel --prod --yes` — redeploy after pushing
+---
 
-No branches have been created yet; all work is on `master`.
-
-## AgentOS integration
+## 15. AgentOS Integration
 
 This project is managed by a three-agent system:
 - PM Agent (Claude Chat): owns requirements and PRD
-- UX Agent (Claude Chat): owns design specs and proposals  
-- Engineering Agent (Claude Chat): owns this brief and fires 
-  Claude Code sessions via Routines
+- UX Agent (Claude Chat): owns design specs and proposals
+- Engineering Agent (Claude Chat): owns this brief and fires Claude Code sessions via Routines
 
-### Shared context location
-Google Drive: /AgentOS/MealPlannerApp/
-- COMPANY.md — product vision and constraints
-- PRD.md — features and acceptance criteria  
-- DECISIONS.md — all approved decisions
-- HANDOFFS.md — tickets between agents
-- BLOCKERS.md — unresolved questions
+Shared context in Google Drive: `/AgentOS/MealPlannerApp/`
+(COMPANY.md, PRD.md, DECISIONS.md, HANDOFFS.md, BLOCKERS.md)
 
-### How implementation briefs arrive
-Each Claude Code session receives an implementation brief 
-in the text field of the Routine trigger. The brief will 
-reference a HANDOFF-[N] number. Read the brief completely 
-before touching any file.
+Each Claude Code session receives an implementation brief referencing a HANDOFF-[N] number. Read the brief completely before touching any file.
 
-### Phase-0 status
-Phase-0 is complete. All existing code is considered 
-stable baseline. Do not refactor existing code unless 
-the brief explicitly instructs it.
-
-### Branch convention
-- Feature branches: feature/HANDOFF-[N]-[short-description]
-- All PRs open as draft against main
-- PR title format: [HANDOFF-N] Feature name — summary
+### Phase status
+- **Phase 0:** Complete. Inventory, Kitchen, old Planner, recipe generation. Not linked from Phase 1 nav — preserved as stable baseline.
+- **Phase 1:** Complete. Onboarding, preferences, plan generation V2, planner V2, SwapSheet, home V2, recipe detail V2, URL import, shopping V2, profile. All 12 sessions delivered.

@@ -4,7 +4,6 @@ import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Recipe } from '@/lib/types'
-import { Badge } from '@/components/ui/badge'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,10 +12,9 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { ChefHat, Plus, Sparkles, Link as LinkIcon, PenLine, Search, X } from 'lucide-react'
+import { Plus, Sparkles, Link as LinkIcon, PenLine, Search, X } from 'lucide-react'
 
-const CUISINE_FILTERS = ['All', 'Indian', 'North Indian', 'South Indian', 'Continental', 'Chinese', 'Mediterranean', 'Other']
-const MEAL_FILTERS = ['All meals', 'Brunch', 'Dinner']
+const CUISINE_FILTERS = ['All', 'Indian', 'Italian', 'Thai', 'Mexican', 'Mediterranean', 'Japanese', 'Chinese', 'Korean', 'Other']
 
 export default function RecipesPage() {
   const router = useRouter()
@@ -24,13 +22,12 @@ export default function RecipesPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [cuisineFilter, setCuisineFilter] = useState('All')
-  const [mealFilter, setMealFilter] = useState('All meals')
 
   useEffect(() => {
-    const supabase = createClient()
-    supabase
+    createClient()
       .from('recipes')
       .select('*')
+      .is('user_id', null)
       .order('created_at', { ascending: false })
       .then(({ data }) => {
         setRecipes((data as Recipe[]) ?? [])
@@ -39,209 +36,193 @@ export default function RecipesPage() {
   }, [])
 
   const filtered = useMemo(() => {
-    return recipes.filter((r) => {
+    return recipes.filter(r => {
       const q = search.toLowerCase()
-      const matchesSearch = !q || r.name.toLowerCase().includes(q) || (r.cuisine_type ?? '').toLowerCase().includes(q)
-      const matchesCuisine = cuisineFilter === 'All' || (r.cuisine_type ?? '').toLowerCase().replace('_', ' ') === cuisineFilter.toLowerCase()
-      const matchesMeal = mealFilter === 'All meals' || (r.meal_type ?? '').toLowerCase() === mealFilter.toLowerCase()
-      return matchesSearch && matchesCuisine && matchesMeal
+      const matchesSearch = !q
+        || r.name.toLowerCase().includes(q)
+        || (r.cuisine_type ?? '').toLowerCase().includes(q)
+      const matchesCuisine = cuisineFilter === 'All'
+        || (r.cuisine_type ?? '').toLowerCase().includes(cuisineFilter.toLowerCase())
+      return matchesSearch && matchesCuisine
     })
-  }, [recipes, search, cuisineFilter, mealFilter])
+  }, [recipes, search, cuisineFilter])
 
-  const hasActiveFilter = cuisineFilter !== 'All' || mealFilter !== 'All meals' || search !== ''
+  const hasFilter = cuisineFilter !== 'All' || search !== ''
 
   return (
-    <main className="min-h-screen bg-background px-4 py-8 max-w-4xl mx-auto">
+    <main className="min-h-screen bg-p1-cream px-5 pt-12 pb-24">
 
-      {/* ── Header ─────────────────────────────────────────────────── */}
+      {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <ChefHat className="w-6 h-6 text-rasa-slate" />
-          <h1 className="font-serif text-2xl font-bold text-rasa-ink">Recipe Bank</h1>
-        </div>
+        <h1 className="text-2xl font-ui font-bold text-p1-dark">Recipe bank</h1>
 
         <DropdownMenu>
-          <DropdownMenuTrigger className={cn(buttonVariants({ variant: 'default' }), 'font-display font-semibold')}>
-            <Plus className="w-4 h-4 mr-2" />
-            Add Recipe
+          <DropdownMenuTrigger
+            className={cn(
+              buttonVariants({ variant: 'default' }),
+              'font-ui font-semibold text-xs px-3 py-2 h-auto rounded-xl bg-p1-terra border-0 text-white'
+            )}
+          >
+            <Plus className="w-3.5 h-3.5 mr-1.5" />
+            Add recipe
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48 bg-rasa-oat border-rasa-stone">
-            <DropdownMenuItem onClick={() => router.push('/recipes/add/generate')} className="font-display">
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onClick={() => router.push('/recipes/add/generate')} className="font-ui">
               <Sparkles className="w-4 h-4" />
               Generate with AI
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push('/recipes/add/import')} className="font-display">
+            <DropdownMenuItem onClick={() => router.push('/recipes/add/manual')} className="font-ui">
+              <PenLine className="w-4 h-4" />
+              Add manually
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push('/recipes/add/import')} className="font-ui">
               <LinkIcon className="w-4 h-4" />
               Import from URL
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push('/recipes/add/manual')} className="font-display">
-              <PenLine className="w-4 h-4" />
-              Add Manually
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
-      {/* ── Search input ───────────────────────────────────────────── */}
+      {/* ── Search ──────────────────────────────────────────────────────── */}
       <div className="relative mb-3">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-p1-brown/50 pointer-events-none" />
         <input
           type="text"
           placeholder="Search recipes…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-9 pr-9 py-2.5 rounded-xl border border-rasa-stone bg-rasa-oat text-sm font-display text-rasa-ink placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-rasa-slate/30 focus:border-rasa-slate transition"
+          onChange={e => setSearch(e.target.value)}
+          className="w-full pl-10 pr-9 py-3 rounded-xl border border-p1-border bg-p1-card text-sm font-ui text-p1-dark placeholder:text-p1-brown/40 focus:outline-none focus:border-p1-terra transition-colors"
         />
         {search && (
-          <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-rasa-ink">
+          <button
+            onClick={() => setSearch('')}
+            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-p1-brown/50"
+          >
             <X className="w-4 h-4" />
           </button>
         )}
       </div>
 
-      {/* ── Filter chips ───────────────────────────────────────────── */}
-      <div className="flex gap-2 overflow-x-auto pb-3 -mx-1 px-1 mb-5">
-        {/* Cuisine chips */}
-        {['All', 'Indian', 'North Indian', 'South Indian', 'Continental', 'Chinese'].map((c) => (
+      {/* ── Cuisine filter chips ─────────────────────────────────────────── */}
+      <div className="flex gap-2 overflow-x-auto pb-3 -mx-1 px-1 mb-4 scrollbar-hide">
+        {CUISINE_FILTERS.map(c => (
           <button
             key={c}
             onClick={() => setCuisineFilter(c)}
             className={cn(
-              'shrink-0 px-3 py-1.5 rounded-full text-[11px] font-display font-semibold border transition-all',
+              'shrink-0 px-3.5 py-1.5 rounded-full text-[11px] font-ui font-semibold border transition-all',
               cuisineFilter === c
-                ? 'bg-rasa-slate text-white border-rasa-slate'
-                : 'bg-rasa-mist text-muted-foreground border-rasa-stone hover:border-rasa-slate/50'
+                ? 'bg-p1-terra text-white border-p1-terra'
+                : 'bg-p1-card text-p1-brown border-p1-border'
             )}
           >
             {c}
           </button>
         ))}
-        <div className="w-px h-6 bg-rasa-stone self-center mx-1 shrink-0" />
-        {/* Meal type chips */}
-        {MEAL_FILTERS.map((m) => (
+        {hasFilter && (
           <button
-            key={m}
-            onClick={() => setMealFilter(m)}
-            className={cn(
-              'shrink-0 px-3 py-1.5 rounded-full text-[11px] font-display font-semibold border transition-all',
-              mealFilter === m
-                ? 'bg-rasa-fern text-white border-rasa-fern'
-                : 'bg-rasa-mist text-muted-foreground border-rasa-stone hover:border-rasa-fern/50'
-            )}
-          >
-            {m}
-          </button>
-        ))}
-        {hasActiveFilter && (
-          <button
-            onClick={() => { setSearch(''); setCuisineFilter('All'); setMealFilter('All meals') }}
-            className="shrink-0 px-3 py-1.5 rounded-full text-[11px] font-display font-semibold border border-rasa-terra/50 text-rasa-terra bg-orange-50 hover:bg-orange-100 flex items-center gap-1 transition-all"
+            onClick={() => { setSearch(''); setCuisineFilter('All') }}
+            className="shrink-0 flex items-center gap-1 px-3.5 py-1.5 rounded-full text-[11px] font-ui font-semibold border border-p1-terra/40 text-p1-terra bg-p1-terra-lt"
           >
             <X className="w-3 h-3" /> Clear
           </button>
         )}
       </div>
 
-      {/* ── Results count ─────────────────────────────────────────── */}
+      {/* ── Count ───────────────────────────────────────────────────────── */}
       {!loading && recipes.length > 0 && (
-        <p className="text-xs font-display text-muted-foreground mb-3">
+        <p className="text-xs font-ui text-p1-brown mb-3">
           {filtered.length} of {recipes.length} recipe{recipes.length !== 1 ? 's' : ''}
-          {hasActiveFilter ? ' matched' : ''}
+          {hasFilter ? ' matched' : ''}
         </p>
       )}
 
-      {/* ── Loading skeleton ───────────────────────────────────────── */}
-      {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="animate-pulse rounded-2xl border border-rasa-stone bg-rasa-mist h-24" />
+      {/* ── Loading ─────────────────────────────────────────────────────── */}
+      {loading && (
+        <div className="space-y-3">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-20 rounded-2xl bg-p1-surface animate-pulse" />
           ))}
         </div>
-      ) : recipes.length === 0 ? (
+      )}
 
-        /* ── Empty state (no recipes at all) ───────────────────────── */
-        <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
-          <div className="w-16 h-16 rounded-full bg-rasa-mist flex items-center justify-center">
-            <ChefHat className="w-8 h-8 text-muted-foreground" />
+      {/* ── Empty — no recipes at all ─────────────────────────────────── */}
+      {!loading && recipes.length === 0 && (
+        <div className="flex flex-col items-center text-center pt-16 gap-4">
+          <span className="text-5xl">📖</span>
+          <div>
+            <p className="text-base font-ui font-semibold text-p1-dark">
+              Your recipe bank is empty
+            </p>
+            <p className="text-sm font-ui text-p1-brown mt-1 max-w-xs">
+              Your bank fills up the moment you plan your first week — or add a recipe now.
+            </p>
           </div>
-          <h2 className="font-serif text-xl font-bold text-rasa-ink">No recipes yet</h2>
-          <p className="font-display text-sm text-muted-foreground max-w-xs">
-            Generate your first recipe with AI to get started.
-          </p>
           <button
-            onClick={() => router.push('/recipes/add/generate')}
-            className={cn(buttonVariants({ variant: 'default' }), 'font-display font-semibold')}
+            onClick={() => router.push('/planner/generate')}
+            className="px-5 py-3 rounded-xl bg-p1-terra text-white text-sm font-ui font-semibold active:opacity-80"
           >
-            <Sparkles className="w-4 h-4 mr-2" />
-            Generate Recipe
+            Plan my first week →
           </button>
         </div>
-      ) : filtered.length === 0 ? (
+      )}
 
-        /* ── Empty state (filter returns nothing) ─────────────────── */
-        <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
-          <Search className="w-10 h-10 text-muted-foreground" />
-          <h2 className="font-serif text-lg font-bold text-rasa-ink">No matches</h2>
-          <p className="font-display text-sm text-muted-foreground">Try a different search or filter.</p>
+      {/* ── Empty — filter matched nothing ───────────────────────────── */}
+      {!loading && recipes.length > 0 && filtered.length === 0 && (
+        <div className="flex flex-col items-center text-center pt-12 gap-3">
+          <span className="text-4xl">🔍</span>
+          <p className="text-base font-ui font-semibold text-p1-dark">Nothing matched that</p>
+          <p className="text-sm font-ui text-p1-brown">Try tweaking the search or filters.</p>
           <button
-            onClick={() => { setSearch(''); setCuisineFilter('All'); setMealFilter('All meals') }}
-            className="text-sm font-display font-bold text-rasa-slate hover:underline"
+            onClick={() => { setSearch(''); setCuisineFilter('All') }}
+            className="text-sm font-ui font-semibold text-p1-terra"
           >
             Clear filters
           </button>
         </div>
-      ) : (
+      )}
 
-        /* ── Recipe grid ───────────────────────────────────────────── */
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {filtered.map((recipe) => (
+      {/* ── Recipe grid ─────────────────────────────────────────────────── */}
+      {!loading && filtered.length > 0 && (
+        <div className="space-y-3">
+          {filtered.map(recipe => (
             <button
               key={recipe.id}
               onClick={() => router.push(`/recipes/${recipe.id}`)}
-              className="text-left rounded-2xl border border-rasa-stone bg-rasa-oat hover:border-rasa-slate/40 hover:shadow-sm transition-all px-4 py-3.5 space-y-2"
+              className="w-full text-left rounded-2xl border border-p1-border bg-p1-card px-4 py-4 active:opacity-80 transition-opacity"
             >
-              <div className="flex items-start justify-between gap-2">
-                <h3 className="font-display font-bold text-sm text-rasa-ink leading-snug flex-1">{recipe.name}</h3>
-                {recipe.batch_cookable && (
-                  <Badge className="text-[10px] bg-rasa-sprout text-rasa-fern border-0 shrink-0 font-display">
-                    Batch
-                  </Badge>
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="text-sm font-ui font-bold text-p1-dark leading-snug flex-1">
+                  {recipe.name}
+                </h3>
+                {recipe.cook_time_minutes && (
+                  <span className="text-xs font-ui text-p1-brown shrink-0 mt-0.5">
+                    {recipe.cook_time_minutes} min
+                  </span>
                 )}
               </div>
 
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-1.5 mt-2">
                 {recipe.cuisine_type && (
-                  <span className="text-[10px] font-display font-semibold px-2 py-0.5 rounded-full bg-rasa-mist border border-rasa-stone text-muted-foreground">
+                  <span className="text-[10px] font-ui font-semibold px-2.5 py-1 rounded-full bg-p1-surface text-p1-brown">
                     {recipe.cuisine_type.replace('_', ' ')}
                   </span>
                 )}
                 {recipe.meal_type && (
-                  <span className="text-[10px] font-display font-semibold px-2 py-0.5 rounded-full bg-rasa-mist border border-rasa-stone text-muted-foreground capitalize">
+                  <span className="text-[10px] font-ui font-semibold px-2.5 py-1 rounded-full bg-p1-surface text-p1-brown capitalize">
                     {recipe.meal_type}
                   </span>
                 )}
-              </div>
-
-              <div className="flex items-center gap-3 text-xs font-code">
-                {recipe.macros_per_serving?.protein_g != null && (
-                  <span className="font-bold text-rasa-fern">
-                    {recipe.macros_per_serving.protein_g}g protein
+                {(recipe as Recipe & { is_complete_meal?: boolean }).is_complete_meal && (
+                  <span className="text-[10px] font-ui font-semibold px-2.5 py-1 rounded-full bg-p1-forest-lt text-p1-forest">
+                    Complete meal
                   </span>
-                )}
-                {recipe.macros_per_serving?.carbs_g != null && (
-                  <span className="text-muted-foreground">{recipe.macros_per_serving.carbs_g}g carbs</span>
-                )}
-                {recipe.cook_time_minutes && (
-                  <span className="text-muted-foreground ml-auto">{recipe.cook_time_minutes} min</span>
                 )}
               </div>
             </button>
           ))}
         </div>
       )}
-
-      {/* Cuisine filter chips reference used below — satisfy TS */}
-      <div className="hidden">{CUISINE_FILTERS.join('')}</div>
     </main>
   )
 }

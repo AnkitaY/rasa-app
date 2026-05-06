@@ -16,6 +16,7 @@ const config: Config = {
         display: ["var(--font-nunito)", ...fontFamily.sans],
         serif:   ["var(--font-playfair)", "Georgia", ...fontFamily.serif],
         code:    ["var(--font-dm-mono)", ...fontFamily.mono],
+        ui:      ["var(--font-dm-sans)", ...fontFamily.sans],
       },
       colors: {
         background: "hsl(var(--background))",
@@ -68,6 +69,20 @@ const config: Config = {
           ink:    "#1E2420",
           fern:   "#4A6741",
           terra:  "#B5735A",
+        },
+        // Phase 1 tokens — use as bg-p1-cream, text-p1-terra, border-p1-border, etc.
+        p1: {
+          cream:      "var(--p1-cream)",
+          card:       "var(--p1-card)",
+          surface:    "var(--p1-surface)",
+          terra:      "var(--p1-terra)",
+          "terra-lt": "var(--p1-terra-lt)",
+          forest:     "var(--p1-forest)",
+          "forest-lt":"var(--p1-forest-lt)",
+          brown:      "var(--p1-brown)",
+          dark:       "var(--p1-dark)",
+          border:     "var(--p1-border)",
+          "border-lt":"var(--p1-border-lt)",
         },
       },
       borderRadius: {

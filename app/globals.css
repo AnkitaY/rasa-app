@@ -14,6 +14,19 @@
     --rasa-fern:   #4A6741;
     --rasa-terra:  #B5735A;
 
+    /* ── Phase 1 palette ─────────────────────────────────────── */
+    --p1-cream:      #FAF7F2;   /* page background */
+    --p1-card:       #FFFFFF;   /* card surface — lifts off cream */
+    --p1-surface:    #EDE0D0;   /* chips, selected states, secondary panels */
+    --p1-terra:      #C4522A;   /* primary CTAs, active states, hero card */
+    --p1-terra-lt:   #F5E6DF;   /* selected chip bg, light terra fills */
+    --p1-forest:     #2D5B3F;   /* cooked state, success, doneness tips */
+    --p1-forest-lt:  #E2EDE6;   /* cooked card bg tint */
+    --p1-brown:      #6B4226;   /* secondary text, labels, metadata */
+    --p1-dark:       #2B1C12;   /* nav bar, page titles, body text anchor */
+    --p1-border:     #DED2C2;   /* standard borders */
+    --p1-border-lt:  #EDE0D0;   /* light borders, dividers */
+
     /* ── shadcn semantic tokens mapped to Kinfolk ─────────────── */
     --background:         37 42% 94%;   /* oat */
     --foreground:         140 9% 13%;   /* ink */

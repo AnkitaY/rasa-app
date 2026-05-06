@@ -151,3 +151,55 @@ export interface GeneratedRecipe {
   batch_cookable: boolean
   source_type: 'ai_generated'
 }
+
+// ─── Phase 1 types ────────────────────────────────────────────────────────────
+
+/** Structured recipe step with optional inline tip callout */
+export interface RecipeStep {
+  instruction: string
+  tip_type?: 'TIMING' | 'DONENESS' | 'HEADS_UP' | 'CLEAN'
+  tip_text?: string
+}
+
+/** Prep-ahead item surfaced at top of recipe detail */
+export interface PrepAheadItem {
+  task: string
+  time_sensitive: boolean
+}
+
+/** User preferences collected at onboarding + profile */
+export interface UserPreferences {
+  id: string
+  anon_id: string
+  dietary_rules: string | null
+  who_cooking_for: 'just_me' | 'me_and_partner' | 'family_young_kids' | 'family_teens'
+  primary_cuisine: string | null
+  secondary_cuisines: string[]
+  skill_level: 'finding_my_feet' | 'pretty_confident' | 'enjoy_challenge' | null
+  weeknight_budget: 'under_30' | '30_to_45' | 'hour_is_fine' | null
+  goals: string[]
+  banned_ingredients: string | null
+  cook_days_per_week: number
+  last_pantry_input: string | null
+  created_at: string
+}
+
+/** A single planned meal in a week's plan */
+export interface Meal {
+  id: string
+  week_plan_id: string
+  day: string           // 'Mon'–'Sun'
+  meal_type: string     // 'dinner'
+  recipe_name: string
+  eating_out: boolean
+  serve_with: string | null
+  reasoning: string | null
+  cooked: boolean
+  cooked_at: string | null
+  swapped_from: string | null
+  verdict: 'loved' | 'ok' | 'skip' | null
+  verdict_shown: boolean
+  notes: string | null
+  use_soon_priority: boolean
+  created_at: string
+}

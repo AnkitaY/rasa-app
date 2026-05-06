@@ -1,8 +1,9 @@
 import type { Metadata, Viewport } from 'next'
 import localFont from 'next/font/local'
-import { Playfair_Display, Nunito, DM_Mono } from 'next/font/google'
+import { Playfair_Display, Nunito, DM_Mono, DM_Sans } from 'next/font/google'
 import './globals.css'
 import BottomNav from './components/BottomNav'
+import OnboardingGuard from './components/OnboardingGuard'
 
 const geistSans = localFont({
   src: './fonts/GeistVF.woff',
@@ -34,6 +35,12 @@ const dmMono = DM_Mono({
   display: 'swap',
 })
 
+const dmSans = DM_Sans({
+  subsets: ['latin'],
+  variable: '--font-dm-sans',
+  display: 'swap',
+})
+
 export const metadata: Metadata = {
   title: 'Rasa',
   description: 'AI-powered meal planning for your household',
@@ -49,13 +56,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} ${nunito.variable} ${dmMono.variable} antialiased font-display`}
+        className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} ${nunito.variable} ${dmMono.variable} ${dmSans.variable} antialiased font-display`}
       >
-        {/* pb-20 clears the fixed bottom nav + safe area */}
-        <div className="pb-20">
-          {children}
-        </div>
-        <BottomNav />
+        <OnboardingGuard>
+          {/* pb-20 clears the fixed bottom nav + safe area */}
+          <div className="pb-20">
+            {children}
+          </div>
+          <BottomNav />
+        </OnboardingGuard>
       </body>
     </html>
   )
