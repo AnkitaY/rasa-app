@@ -11,10 +11,10 @@ import { ChevronLeft } from 'lucide-react'
 const DIETARY_CHIPS = ['Vegetarian', 'Halal', 'Vegan', 'Gluten-free', 'Dairy-free']
 
 const WHO_FOR_OPTIONS = [
-  { value: 'just_me',        label: 'Just me',            emoji: '🧑‍🍳' },
-  { value: 'me_partner',     label: 'Me + partner',       emoji: '👫' },
-  { value: 'family_young',   label: 'Family, young kids', emoji: '👨‍👩‍👧' },
-  { value: 'family_teens',   label: 'Family, teens',      emoji: '👨‍👩‍👦' },
+  { value: 'just_me',           label: 'Just me',            emoji: '🧑‍🍳' },
+  { value: 'me_and_partner',    label: 'Me + partner',       emoji: '👫' },
+  { value: 'family_young_kids', label: 'Family, young kids', emoji: '👨‍👩‍👧' },
+  { value: 'family_teens',      label: 'Family, teens',      emoji: '👨‍👩‍👦' },
 ]
 
 const CUISINE_OPTIONS = [
@@ -23,15 +23,15 @@ const CUISINE_OPTIONS = [
 ]
 
 const SKILL_OPTIONS = [
-  { value: 'beginner',      label: 'Beginner',      sub: 'Simple weeknight staples' },
-  { value: 'home_cook',     label: 'Home cook',     sub: 'Comfortable with most recipes' },
-  { value: 'adventurous',   label: 'Adventurous',   sub: 'Happy to try complex dishes' },
+  { value: 'finding_my_feet',  label: 'Beginner',      sub: 'Simple weeknight staples' },
+  { value: 'pretty_confident', label: 'Home cook',     sub: 'Comfortable with most recipes' },
+  { value: 'enjoy_challenge',  label: 'Adventurous',   sub: 'Happy to try complex dishes' },
 ]
 
 const BUDGET_OPTIONS = [
-  { value: 'quick',    label: '≤ 25 min',  sub: 'Always in a rush' },
-  { value: 'moderate', label: '30–45 min', sub: 'The usual weeknight' },
-  { value: 'relaxed',  label: '60 min+',  sub: 'Happy to take my time' },
+  { value: 'under_30',   label: '≤ 30 min',  sub: 'Always in a rush' },
+  { value: '30_to_45',   label: '30–45 min', sub: 'The usual weeknight' },
+  { value: 'hour_is_fine', label: '60 min+', sub: 'Happy to take my time' },
 ]
 
 const GOAL_OPTIONS = [
