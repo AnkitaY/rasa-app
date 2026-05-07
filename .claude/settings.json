@@ -1,0 +1,37 @@
+{
+  "mcpServers": {
+    "github": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}" }
+    },
+    "supabase": {
+      "type": "url",
+      "url": "https://mcp.supabase.com/mcp",
+      "headers": { "Authorization": "Bearer ${SUPABASE_ACCESS_TOKEN}" }
+    },
+    "vercel": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "vercel-mcp"],
+      "env": { "VERCEL_TOKEN": "${VERCEL_TOKEN}" }
+    }
+  },
+  "contextWindowUsage": {
+    "compactThreshold": 0.75,
+    "autoCompact": true
+  },
+  "permissions": {
+    "allow": [
+      "Bash(git *)", "Bash(gh *)",
+      "Bash(npm run *)", "Bash(npm test)",
+      "Bash(npx *)"
+    ],
+    "deny": [
+      "Bash(git push --force)",
+      "Bash(rm -rf *)",
+      "Bash(DROP TABLE *)"
+    ]
+  }
+}
