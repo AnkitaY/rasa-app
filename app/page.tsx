@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Settings } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 import { getAnonId } from '@/lib/anon'
 import { cn } from '@/lib/utils'
 
@@ -89,12 +88,11 @@ export default function HomePage() {
         // Fetch recipe details for tonight's meal
         const tonight = list.find(m => m.day === TODAY_ABBR && !m.cooked)
         if (tonight?.recipe_id) {
-          const { data: recipe } = await createClient()
-            .from('recipes')
-            .select('cook_time_minutes, servings, prep_ahead')
-            .eq('id', tonight.recipe_id)
-            .single()
-          if (recipe) setTonightRecipe(recipe)
+          const res = await fetch(`/api/recipes/${encodeURIComponent(tonight.recipe_id)}`)
+          if (res.ok) {
+            const { recipe } = await res.json()
+            if (recipe) setTonightRecipe(recipe)
+          }
         }
       })
       .catch(() => {/* allow through */})
