@@ -50,10 +50,11 @@
   - Fix: add <BottomNav /> at the bottom of the RecipeDetailPage return and change the root <div> to <main>.
 
 ## Testing tasks
-- [ ] Set up test framework: Vitest + React Testing Library (decided 2026-05-07) | Priority: HIGH | From: founder
-- [ ] Write unit tests for lib/supabase/ client utilities | Priority: MED | From: founder
-- [ ] Write integration tests for /api/plans/generate-v2 | Priority: MED | From: founder
-- [ ] Write integration tests for /api/preferences/save | Priority: MED | From: founder
+- [x] Set up test framework: Vitest + React Testing Library (decided 2026-05-07) | Priority: HIGH | From: founder — done: 2026-05-08 | agent: test-engineer
+- [x] Write unit tests for lib/supabase/ client utilities | Priority: MED | From: founder — done: 2026-05-08 | agent: test-engineer
+- [x] Write integration tests for /api/plans/generate-v2 | Priority: MED | From: founder — done: 2026-05-08 | agent: test-engineer
+- [x] Write integration tests for /api/preferences/save | Priority: MED | From: founder — done: 2026-05-08 | agent: test-engineer
+- [x] Set up Playwright E2E tests (54 tests across onboarding, home, planner, recipes flows) | Priority: MED | From: founder — done: 2026-05-08 | agent: test-engineer
 
 ## Feature improvements
 - [ ] IMP-001: generate-v2 saves last_pantry_input via update (no-op if prefs row missing) — use upsert instead | Priority: LOW | From: code audit 2026-05-07

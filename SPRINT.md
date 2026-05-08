@@ -22,4 +22,5 @@ Goal: Fix all critical Phase 1 bugs and achieve basic test coverage
 - [ ] Confirm Phase 2 scope before planning begins
 
 ## Done this sprint
-(Agent moves items here on completion)
+- [x] Test framework setup: Vitest + RTL — 25 unit/integration tests, 0 failures — done: 2026-05-08
+- [x] Playwright E2E setup: 54 tests across onboarding, home, planner, recipes — done: 2026-05-08
