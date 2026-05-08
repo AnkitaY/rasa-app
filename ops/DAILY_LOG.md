@@ -15,3 +15,4 @@
 2026-05-07 backend-engineer: BUG-007 recipe bank direct Supabase → done | created GET /api/recipes/list (admin client, anon_id required); replaced createClient() call in app/recipes/page.tsx with fetch(); npm run build ✓ (39/39 pages, clean)
 2026-05-07 qa-agent: Phase 1 QA pass (9 flows) → done | 2 new HIGH bugs logged (BUG-006 preferences save failure in prod, BUG-007 recipe bank direct Supabase); flows 1-8 PASS on static audit; BUG-001/002/003 fixes verified
 2026-05-07 backend-engineer: SOP updated — removed feature-branch requirement | CLAUDE.md + backend-engineer + frontend-engineer + lead-engineer + code-reviewer agents now commit directly to main; /review still required before every push
+2026-05-07 backend-engineer: BUG-004/005/006/007 pushed to master (c8b7384) → Vercel deployed ✓ | https://rasa-app-woad.vercel.app/ responding 200
