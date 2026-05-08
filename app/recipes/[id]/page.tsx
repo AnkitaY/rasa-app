@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -144,17 +143,16 @@ export default function RecipeDetailPage() {
     if (!id) return
     async function load() {
       try {
-        const { data } = await createClient()
-          .from('recipes')
-          .select('id, name, cuisine_type, meal_type, cook_time_minutes, servings, ingredients, steps, steps_v2, prep_ahead, is_complete_meal, source_type, source_url')
-          .eq('id', id)
-          .single()
-        if (data) {
-          setRecipe(data as Recipe)
-          // Auto-expand prep ahead if any item is time_sensitive
-          const prepItems = (data.prep_ahead ?? []) as PrepAheadItem[]
-          if (prepItems.some(p => p.time_sensitive)) {
-            setPrepExpanded(true)
+        const res = await fetch(`/api/recipes/${encodeURIComponent(id)}`)
+        if (res.ok) {
+          const { recipe: data } = await res.json()
+          if (data) {
+            setRecipe(data as Recipe)
+            // Auto-expand prep ahead if any item is time_sensitive
+            const prepItems = (data.prep_ahead ?? []) as PrepAheadItem[]
+            if (prepItems.some(p => p.time_sensitive)) {
+              setPrepExpanded(true)
+            }
           }
         }
       } catch {

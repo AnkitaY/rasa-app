@@ -3,9 +3,9 @@
 # Format: - [ ] DECISION NEEDED: [description] | Urgency: [HIGH/MED/LOW] | From: [agent]
 
 ## Open
-- [ ] DECISION NEEDED: Choose test framework (Vitest vs Jest) before test-engineer begins | Urgency: MED | From: lead-engineer
-- [ ] DECISION NEEDED: Fill in known Phase 1 bugs in ops/inbox/engineering/tasks.md | Urgency: HIGH | From: system setup
-- [ ] DECISION NEEDED: Define Phase 2 scope before pm-agent can write PRDs | Urgency: LOW | From: pm-agent
+(none)
 
 ## Resolved
-# - [x] [DECISION]: [what was decided] — date: [DATE]
+- [x] DECISION: Phase 1 bugs documented in ops/inbox/engineering/tasks.md (BUG-001 through BUG-005) by code audit 2026-05-07 — no further action needed — date: 2026-05-07
+- [x] DECISION: Test framework = Vitest (+ React Testing Library) — date: 2026-05-07
+- [x] DECISION: Phase 2 parked — focus is completing Phase 1 across engineering, UX, and PM before any Phase 2 work begins — date: 2026-05-07

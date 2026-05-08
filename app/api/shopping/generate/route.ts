@@ -75,20 +75,20 @@ export async function POST(request: NextRequest) {
   try { body = await request.json() } catch { /* ignore */ }
 
   const { anon_id } = body
+  if (!anon_id) {
+    return NextResponse.json({ error: 'anon_id required' }, { status: 400 })
+  }
+
   const admin = createAdminClient()
 
   // 1. Latest week plan
-  const planQuery = admin
+  const { data: weekPlan } = await admin
     .from('week_plans')
     .select('id, pantry_snapshot, slots')
+    .eq('anon_id', anon_id)
     .order('created_at', { ascending: false })
     .limit(1)
-
-  const { data: weekPlan } = await (
-    anon_id
-      ? planQuery.eq('anon_id', anon_id).maybeSingle()
-      : planQuery.maybeSingle()
-  )
+    .maybeSingle()
 
   if (!weekPlan) {
     return NextResponse.json(

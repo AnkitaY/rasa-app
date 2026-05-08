@@ -328,32 +328,83 @@ Generate all 7 days in order: Mon, Tue, Wed, Thu, Fri, Sat, Sun.`
     batch_opportunities: [],
   }
 
-  // 7. Create week_plans row
+  // 7. Create or update week_plans row (preserve cooked meals on re-generate)
   const weekStartDate = getCurrentWeekMonday()
-  const { data: weekPlan, error: wpError } = await admin
-    .from('week_plans')
-    .insert({
-      user_id: null,
-      anon_id,
-      week_start_date: weekStartDate,
-      slots: generatedPlan,
-      pantry_snapshot: pantry_input,
-      week_context: week_context ?? null,
-      use_soon_text: use_soon ?? null,
-    })
-    .select('id')
-    .single()
 
-  if (wpError || !weekPlan) {
-    return NextResponse.json(
-      { error: "Couldn't build your week. Give it one more try?" },
-      { status: 500 }
-    )
+  const { data: existingPlan } = await admin
+    .from('week_plans')
+    .select('id')
+    .eq('anon_id', anon_id)
+    .eq('week_start_date', weekStartDate)
+    .maybeSingle()
+
+  let weekPlanId: string
+  let mealsToInsert = parsed.meals
+
+  if (existingPlan?.id) {
+    // Days that are already cooked — don't replace them with new AI-generated meals
+    const { data: cookedMeals } = await admin
+      .from('meals')
+      .select('day')
+      .eq('week_plan_id', existingPlan.id)
+      .eq('cooked', true)
+
+    const cookedDays = new Set((cookedMeals ?? []).map((m: { day: string }) => m.day))
+
+    // Remove only uncooked meals — cooked progress is preserved
+    await admin
+      .from('meals')
+      .delete()
+      .eq('week_plan_id', existingPlan.id)
+      .eq('cooked', false)
+
+    const { error: updateError } = await admin
+      .from('week_plans')
+      .update({
+        slots: generatedPlan,
+        pantry_snapshot: pantry_input,
+        week_context: week_context ?? null,
+        use_soon_text: use_soon ?? null,
+      })
+      .eq('id', existingPlan.id)
+
+    if (updateError) {
+      return NextResponse.json(
+        { error: "Couldn't build your week. Give it one more try?" },
+        { status: 500 }
+      )
+    }
+
+    weekPlanId = existingPlan.id
+    mealsToInsert = parsed.meals.filter(m => !cookedDays.has(m.day))
+  } else {
+    const { data: weekPlan, error: wpError } = await admin
+      .from('week_plans')
+      .insert({
+        user_id: null,
+        anon_id,
+        week_start_date: weekStartDate,
+        slots: generatedPlan,
+        pantry_snapshot: pantry_input,
+        week_context: week_context ?? null,
+        use_soon_text: use_soon ?? null,
+      })
+      .select('id')
+      .single()
+
+    if (wpError || !weekPlan) {
+      return NextResponse.json(
+        { error: "Couldn't build your week. Give it one more try?" },
+        { status: 500 }
+      )
+    }
+
+    weekPlanId = weekPlan.id
   }
 
   // 8. Create meals rows
-  const mealRows = parsed.meals.map(m => ({
-    week_plan_id: weekPlan.id,
+  const mealRows = mealsToInsert.map(m => ({
+    week_plan_id: weekPlanId,
     day: m.day,
     meal_type: 'dinner',
     recipe_name: m.recipe_name,
@@ -369,16 +420,22 @@ Generate all 7 days in order: Mon, Tue, Wed, Thu, Fri, Sat, Sun.`
     use_soon_priority: m.use_soon_priority ?? false,
   }))
 
-  const { data: insertedMeals, error: mealsError } = await admin
-    .from('meals')
-    .insert(mealRows)
-    .select('*')
+  let insertedMeals: Record<string, unknown>[] = []
 
-  if (mealsError) {
-    return NextResponse.json(
-      { error: "Couldn't build your week. Give it one more try?" },
-      { status: 500 }
-    )
+  if (mealRows.length > 0) {
+    const { data: newMeals, error: mealsError } = await admin
+      .from('meals')
+      .insert(mealRows)
+      .select('*')
+
+    if (mealsError) {
+      return NextResponse.json(
+        { error: "Couldn't build your week. Give it one more try?" },
+        { status: 500 }
+      )
+    }
+
+    insertedMeals = newMeals ?? []
   }
 
   // 9. Persist pantry snapshot to preferences
@@ -389,7 +446,7 @@ Generate all 7 days in order: Mon, Tue, Wed, Thu, Fri, Sat, Sun.`
 
   return NextResponse.json({
     ok: true,
-    week_plan_id: weekPlan.id,
+    week_plan_id: weekPlanId,
     meals: insertedMeals ?? [],
     recipe_ids: recipeIdMap,
   })
