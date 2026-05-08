@@ -34,11 +34,14 @@ Before any task: Read CLAUDE.md + docs/ENGINEERING_CONTEXT.md + SPRINT.md.
 - Parse response: extract JSON with raw.match(/\{[\s\S]*\}/)
 - Handle parse failures gracefully — return 500 with error message
 
-## Output format
+## Definition of Done (run in order — do not skip steps)
 1. Plan (3 bullets) → confirm before coding
 2. Implement
 3. Check security checklist (auth, validation, no DB errors to client)
-4. Commit: feat/fix/chore: [description]
-
-## Handoff note (required)
-FROM: backend-engineer | BRANCH: [name] | NEXT: code-reviewer
+4. Run `npm run build` — fix ALL errors and warnings before proceeding
+5. Mark task complete in ops/inbox/engineering/tasks.md (change `- [ ]` to `- [x]`)
+6. Append to ops/DAILY_LOG.md: `- [DATE] [backend-engineer] [BRANCH] [task id] — [one line summary]`
+7. Commit on a feature branch: `fix/feat/chore: [description]` — never commit to main
+8. Run `/review` — address every issue raised before proceeding
+9. Push branch, open a PR against main, and merge it
+10. Verify Vercel deployment succeeded at https://rasa-app-woad.vercel.app/

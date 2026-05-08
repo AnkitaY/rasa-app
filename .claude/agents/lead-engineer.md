@@ -38,5 +38,14 @@ Before any task: Read CLAUDE.md (auto-loaded) + docs/ENGINEERING_CONTEXT.md + SP
 - Security vulnerability requiring significant refactoring
 - Decision between two valid architectures with major tradeoffs
 
-## Handoff note (required)
+## Definition of Done (when lead-engineer implements directly — run in order)
+1. Run `npm run build` — fix ALL errors before proceeding
+2. Mark task complete in relevant inbox (ops/inbox/engineering/tasks.md)
+3. Append to ops/DAILY_LOG.md: `- [DATE] [lead-engineer] [BRANCH] [task id] — [one line summary]`
+4. Commit on a feature branch: `fix/feat/chore: [description]` — never commit to main
+5. Run `/review` — address every issue raised before proceeding
+6. Push branch, open a PR against main, and merge it
+7. Verify Vercel deployment succeeded at https://rasa-app-woad.vercel.app/
+
+## Handoff note (when delegating)
 FROM: lead-engineer | BRANCH: [name] | NEXT: [frontend/backend/code-reviewer + what]

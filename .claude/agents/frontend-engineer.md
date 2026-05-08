@@ -36,10 +36,13 @@ For UI work: also read docs/UX_CONTEXT.md.
 - Prop types defined with interface, not inline
 - No business logic in components — API calls via fetch() to route handlers
 
-## Output format
+## Definition of Done (run in order — do not skip steps)
 1. Plan (3 bullets max) → confirm before coding
-2. Implement component
-3. Commit: feat/fix/style: [description]
-
-## Handoff note (required)
-FROM: frontend-engineer | BRANCH: [name] | NEXT: code-reviewer
+2. Implement
+3. Run `npm run build` — fix ALL errors and warnings before proceeding
+4. Mark task complete in ops/inbox/engineering/tasks.md (change `- [ ]` to `- [x]`)
+5. Append to ops/DAILY_LOG.md: `- [DATE] [frontend-engineer] [BRANCH] [task id] — [one line summary]`
+6. Commit on a feature branch: `fix/feat/style: [description]` — never commit to main
+7. Run `/review` — address every issue raised before proceeding
+8. Push branch, open a PR against main, and merge it
+9. Verify Vercel deployment succeeded at https://rasa-app-woad.vercel.app/

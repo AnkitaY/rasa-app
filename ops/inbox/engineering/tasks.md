@@ -2,19 +2,48 @@
 # Agents read this at session start and process in order
 # Format: - [ ] TASK: [description] | Priority: [HIGH/MED/LOW] | From: [source]
 
-## Phase 1 bugs (fill in your known bugs — test the app and document what you find)
-- [ ] [BUG-001: FILL IN — describe the bug, how to reproduce it, expected vs actual behavior] | Priority: HIGH | From: founder
-- [ ] [BUG-002: FILL IN — describe] | Priority: HIGH | From: founder
-- [ ] [BUG-003: FILL IN — describe] | Priority: MED | From: founder
+## Phase 1 bugs
+
+- [x] BUG-001: Home page and recipe detail query Supabase directly, bypassing API routes — may silently fail with RLS | Priority: HIGH | From: code audit 2026-05-07
+  - Files: app/page.tsx:92-97, app/recipes/[id]/page.tsx:143-163
+  - Both use createClient() (anon key) to query the recipes table directly. CLAUDE.md hard rule: all DB queries go through admin client in API routes, never in components.
+  - Impact: if RLS blocks anonymous reads on recipes, home page hero shows no cook time / prep-ahead info and the "Let's cook →" button never appears. Recipe detail page shows "Recipe not found" for every recipe.
+  - Fix: create GET /api/recipes/[id] route (admin client) and replace both direct client calls with fetch to that route.
+
+- [x] BUG-002: Shopping list API falls through to return any user's most recent plan when anon_id is missing | Priority: HIGH | From: code audit 2026-05-07
+  - File: app/api/shopping/generate/route.ts:87-91
+  - When anon_id is falsy the planQuery runs without .eq('anon_id', ...) and returns the most recently created week_plans row in the entire DB — another user's data.
+  - Reproduce: POST /api/shopping/generate with body {} — returns some user's shopping list.
+  - Fix: add a 400 guard at the top of the route if anon_id is missing, consistent with how every other route handles it.
+
+- [x] BUG-003: Regenerating a plan orphans cooked meals — cooking progress disappears | Priority: HIGH | From: code audit 2026-05-07
+  - File: app/api/plans/generate-v2/route.ts:332-353
+  - Every generate-v2 call INSERTs a brand-new week_plans row. When user marks meals cooked on plan A, then clicks "Rethink remaining →" and generates plan B, plan B is a new row. The home page and planner pivot to plan B (latest created_at). All cooked progress from plan A is invisible.
+  - Reproduce: generate plan → mark one meal cooked → go to planner → click "Rethink remaining →" → generate again → cooked meal gone.
+  - Fix: upsert on (anon_id, week_start_date) or keep the existing plan row and only replace the uncooked meals + re-insert those meals.
+
+- [ ] BUG-004: Marking a meal cooked from the planner auto-redirects to home after 1.6s with no opt-out | Priority: MED | From: code audit 2026-05-07
+  - File: app/planner/page.tsx:111 — setTimeout(() => router.push('/'), 1600)
+  - After marking any single meal cooked, the user is forcibly navigated home. Breaks the flow for users managing multiple meals (marking several as cooked, swapping others). No way to cancel or stay on planner.
+  - Reproduce: open planner with multiple uncooked meals → mark one cooked → observe auto-navigation to home 1.6 s later.
+  - Fix: remove the auto-redirect; let the toast message fade on its own and keep the user on the planner.
+
+- [ ] BUG-005: Recipe detail page (/recipes/[id]) has no BottomNav — users are stranded | Priority: MED | From: code audit 2026-05-07
+  - File: app/recipes/[id]/page.tsx — root element is a bare <div>, no BottomNav imported or rendered.
+  - After tapping "Let's cook →" (home) or "Recipe" (planner), users land on the recipe page with no way to navigate elsewhere except the "Back" button. On mobile web there is no persistent nav.
+  - Fix: add <BottomNav /> at the bottom of the RecipeDetailPage return and change the root <div> to <main>.
 
 ## Testing tasks
-- [ ] Set up test framework (Vitest + React Testing Library recommended) | Priority: HIGH | From: founder
+- [ ] Set up test framework: Vitest + React Testing Library (decided 2026-05-07) | Priority: HIGH | From: founder
 - [ ] Write unit tests for lib/supabase/ client utilities | Priority: MED | From: founder
 - [ ] Write integration tests for /api/plans/generate-v2 | Priority: MED | From: founder
 - [ ] Write integration tests for /api/preferences/save | Priority: MED | From: founder
 
 ## Feature improvements
-- [ ] [IMP-001: FILL IN — describe the improvement] | Priority: MED | From: founder
+- [ ] IMP-001: generate-v2 saves last_pantry_input via update (no-op if prefs row missing) — use upsert instead | Priority: LOW | From: code audit 2026-05-07
+  - File: app/api/plans/generate-v2/route.ts:384-387
+  - Edge case: if preferences row doesn't exist at generate time, pantry pre-fill on next visit never works.
 
 ## Processed (do not delete — useful context)
 # - [x] [TASK]: [description] — done: [date] | agent: [who did it]
+- [x] BUG-003: Regenerating a plan orphans cooked meals — done: 2026-05-07 | agent: backend-engineer
