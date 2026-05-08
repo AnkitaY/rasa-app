@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import BottomNav from '@/app/components/BottomNav'
+
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -176,7 +176,6 @@ export default function RecipeDetailPage() {
           <div className="h-32 bg-p1-surface rounded-xl animate-pulse" />
           <div className="h-48 bg-p1-surface rounded-xl animate-pulse" />
         </div>
-        <BottomNav />
       </main>
     )
   }
@@ -189,7 +188,6 @@ export default function RecipeDetailPage() {
         <button onClick={() => router.back()} className="text-sm font-ui text-p1-terra font-semibold">
           ← Go back
         </button>
-        <BottomNav />
       </main>
     )
   }
@@ -368,7 +366,6 @@ export default function RecipeDetailPage() {
         )}
       </div>
 
-      <BottomNav />
     </main>
   )
 }
