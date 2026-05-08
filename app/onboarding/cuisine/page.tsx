@@ -35,6 +35,7 @@ function ProgressPips({ current }: { current: 1 | 2 | 3 }) {
 
 export default function CuisinePage() {
   const router = useRouter()
+  const [anonId, setAnonId] = useState('')
   const [primary, setPrimary] = useState<string | null>(null)
   const [secondary, setSecondary] = useState<string[]>([])
   const [otherPrimary, setOtherPrimary] = useState('')
@@ -47,6 +48,8 @@ export default function CuisinePage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
+    // Generate/read anon ID at mount so it's ready before submit fires
+    setAnonId(getAnonId())
     try {
       const stored = sessionStorage.getItem('rasa_ob')
       if (stored) {
@@ -116,6 +119,11 @@ export default function CuisinePage() {
 
     startTransition(async () => {
       try {
+        if (!anonId) {
+          setError('Session error — please refresh and try again.')
+          return
+        }
+
         const stored = sessionStorage.getItem('rasa_ob') || '{}'
         const ob = JSON.parse(stored)
         const payload = {
@@ -124,7 +132,6 @@ export default function CuisinePage() {
           secondary_cuisines: effectiveSecondary,
         }
 
-        const anonId = getAnonId()
         const res = await fetch('/api/preferences/save', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getAnonId } from '@/lib/anon'
 import { cn } from '@/lib/utils'
@@ -58,7 +57,6 @@ function formatDateRange(weekStart: string): string {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function PlannerPage() {
-  const router = useRouter()
   const [meals, setMeals] = useState<MealWithRecipe[]>([])
   const [weekPlan, setWeekPlan] = useState<WeekPlanMeta | null>(null)
   const [loading, setLoading] = useState(true)
@@ -108,7 +106,6 @@ export default function PlannerPage() {
         )
       )
       showToast('Nice work. Dinner\'s done. 🍽')
-      setTimeout(() => router.push('/'), 1600)
     } catch {
       showToast('Hmm, something went wrong. Try again?')
     } finally {

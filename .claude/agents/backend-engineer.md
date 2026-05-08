@@ -40,8 +40,8 @@ Before any task: Read CLAUDE.md + docs/ENGINEERING_CONTEXT.md + SPRINT.md.
 3. Check security checklist (auth, validation, no DB errors to client)
 4. Run `npm run build` — fix ALL errors and warnings before proceeding
 5. Mark task complete in ops/inbox/engineering/tasks.md (change `- [ ]` to `- [x]`)
-6. Append to ops/DAILY_LOG.md: `- [DATE] [backend-engineer] [BRANCH] [task id] — [one line summary]`
-7. Commit on a feature branch: `fix/feat/chore: [description]` — never commit to main
-8. Run `/review` — address every issue raised before proceeding
-9. Push branch, open a PR against main, and merge it
+6. Append to ops/DAILY_LOG.md: `- [DATE] [backend-engineer] main [task id] — [one line summary]`
+7. Run `/review` — address every issue raised before proceeding
+8. Commit directly to main: `git add <files> && git commit -m "fix/feat/chore: [description]"`
+9. Push: `git push origin master`
 10. Verify Vercel deployment succeeded at https://rasa-app-woad.vercel.app/

@@ -65,7 +65,7 @@
 
 ### Git / deploy
 - Never commit `.env` files or secrets to git
-- Feature branches only — nothing goes directly to main
+- Commit directly to main — run `/review` and fix all issues before pushing
 - Always run `npm run build` before committing — ESLint runs at build time
 
 ### Repo-level operating constraints

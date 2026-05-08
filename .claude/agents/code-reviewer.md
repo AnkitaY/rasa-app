@@ -53,13 +53,11 @@ No prose commentary. No compliments. Issues only.
 ## After verdict (required)
 
 **If PASS:**
-1. Mark the review item done in ops/inbox/code-reviewer/tasks.md (change `- [ ]` to `- [x]`)
-2. Append to ops/DAILY_LOG.md: `- [DATE] [code-reviewer] [branch] — PASS`
-3. Append to ops/inbox/engineering/tasks.md under ## Processed:
-   `- [x] REVIEW PASSED: [branch] — ready to push and open PR — date: [DATE]`
+1. Append to ops/DAILY_LOG.md: `- [DATE] [code-reviewer] main — PASS`
+2. Append to ops/inbox/engineering/tasks.md under ## Processed:
+   `- [x] REVIEW PASSED: [task id] — ready to commit and push to main — date: [DATE]`
 
 **If NEEDS_CHANGES:**
-1. Mark the review item done in ops/inbox/code-reviewer/tasks.md (change `- [ ]` to `- [x]`)
-2. Append to ops/DAILY_LOG.md: `- [DATE] [code-reviewer] [branch] — NEEDS_CHANGES ([n] issues)`
-3. Append to ops/inbox/engineering/tasks.md:
-   `- [ ] REVIEW_FIXES: [branch] | [issue 1 summary] · [issue 2 summary] ... | From: code-reviewer`
+1. Append to ops/DAILY_LOG.md: `- [DATE] [code-reviewer] main — NEEDS_CHANGES ([n] issues)`
+2. Append to ops/inbox/engineering/tasks.md:
+   `- [ ] REVIEW_FIXES: [task id] | [issue 1 summary] · [issue 2 summary] ... | From: code-reviewer`

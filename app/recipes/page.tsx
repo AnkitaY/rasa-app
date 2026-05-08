@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { getAnonId } from '@/lib/anon'
 import { Recipe } from '@/lib/types'
 import {
   DropdownMenu,
@@ -24,15 +24,14 @@ export default function RecipesPage() {
   const [cuisineFilter, setCuisineFilter] = useState('All')
 
   useEffect(() => {
-    createClient()
-      .from('recipes')
-      .select('*')
-      .is('user_id', null)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        setRecipes((data as Recipe[]) ?? [])
-        setLoading(false)
+    const anonId = getAnonId()
+    fetch(`/api/recipes/list?anon_id=${encodeURIComponent(anonId)}`)
+      .then(r => r.json())
+      .then(({ recipes }) => {
+        setRecipes((recipes as Recipe[]) ?? [])
       })
+      .catch(() => {/* show empty state */})
+      .finally(() => setLoading(false))
   }, [])
 
   const filtered = useMemo(() => {

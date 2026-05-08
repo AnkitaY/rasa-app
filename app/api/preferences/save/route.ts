@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
     .maybeSingle()
 
   if (fetchError) {
+    console.error('[preferences/save] fetchError', fetchError)
     return NextResponse.json({ error: 'Could not reach the database.' }, { status: 500 })
   }
 
@@ -42,6 +43,7 @@ export async function POST(request: NextRequest) {
       .eq('anon_id', anon_id)
 
     if (updateError) {
+      console.error('[preferences/save] updateError', updateError)
       return NextResponse.json({ error: 'Could not save your preferences.' }, { status: 500 })
     }
   } else {
@@ -64,6 +66,7 @@ export async function POST(request: NextRequest) {
       .insert({ ...defaults, ...fields, anon_id })
 
     if (insertError) {
+      console.error('[preferences/save] insertError', insertError)
       return NextResponse.json({ error: 'Could not save your preferences.' }, { status: 500 })
     }
   }

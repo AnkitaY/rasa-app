@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import BottomNav from '@/app/components/BottomNav'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -168,26 +169,28 @@ export default function RecipeDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-p1-cream">
+      <main className="min-h-screen bg-p1-cream">
         <div className="h-52 bg-p1-dark animate-pulse" />
         <div className="px-5 pt-6 space-y-4">
           <div className="h-5 bg-p1-surface rounded w-3/4 animate-pulse" />
           <div className="h-32 bg-p1-surface rounded-xl animate-pulse" />
           <div className="h-48 bg-p1-surface rounded-xl animate-pulse" />
         </div>
-      </div>
+        <BottomNav />
+      </main>
     )
   }
 
   if (!recipe) {
     return (
-      <div className="min-h-screen bg-p1-cream flex flex-col items-center justify-center gap-4 px-8 text-center pb-24">
+      <main className="min-h-screen bg-p1-cream flex flex-col items-center justify-center gap-4 px-8 text-center pb-24">
         <p className="text-lg font-ui font-semibold text-p1-dark">Recipe not found</p>
         <p className="text-sm font-ui text-p1-brown">It may have been removed or the link is broken.</p>
         <button onClick={() => router.back()} className="text-sm font-ui text-p1-terra font-semibold">
           ← Go back
         </button>
-      </div>
+        <BottomNav />
+      </main>
     )
   }
 
@@ -208,7 +211,7 @@ export default function RecipeDetailPage() {
   ].filter(Boolean) as string[]
 
   return (
-    <div className="min-h-screen bg-p1-cream">
+    <main className="min-h-screen bg-p1-cream">
 
       {/* ── Dark header ─────────────────────────────────────────────────────── */}
       <div
@@ -259,7 +262,7 @@ export default function RecipeDetailPage() {
         </button>
       </div>
 
-      <div className="px-5 pb-16 space-y-6 pt-5">
+      <div className="px-5 pb-24 space-y-6 pt-5">
 
         {/* ── Prep ahead ──────────────────────────────────────────────────── */}
         {hasPrepAhead && (
@@ -364,6 +367,8 @@ export default function RecipeDetailPage() {
           </p>
         )}
       </div>
-    </div>
+
+      <BottomNav />
+    </main>
   )
 }

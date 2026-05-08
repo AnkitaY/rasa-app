@@ -22,13 +22,29 @@
   - Reproduce: generate plan → mark one meal cooked → go to planner → click "Rethink remaining →" → generate again → cooked meal gone.
   - Fix: upsert on (anon_id, week_start_date) or keep the existing plan row and only replace the uncooked meals + re-insert those meals.
 
-- [ ] BUG-004: Marking a meal cooked from the planner auto-redirects to home after 1.6s with no opt-out | Priority: MED | From: code audit 2026-05-07
+- [x] BUG-006: Preferences save fails in production with "Hmm, couldn't save your preferences. Give it one more try?" | Priority: HIGH | From: founder 2026-05-07
+  - Flow: Onboarding — last step (cuisine selection) → save → error toast
+  - Reproduce: complete all 3 onboarding steps on fresh session → submit cuisine step → error appears
+  - Expected: preferences saved, redirected to /planner/generate
+  - Actual: 500 error toast, user stuck on onboarding
+  - Static audit shows route code is correct — likely a runtime issue (anon_id not yet set in localStorage when save fires, or Supabase admin client env var issue in production)
+  - File hint: app/onboarding/cuisine/page.tsx (save call), app/api/preferences/save/route.ts
+
+- [x] BUG-007: Recipe bank (/recipes) queries Supabase directly — same violation as BUG-001 | Priority: HIGH | From: qa-agent 2026-05-07
+  - Flow: Recipe bank page
+  - Reproduce: navigate to /recipes — direct createClient() call fetches all recipes with no anon_id filter
+  - Expected: recipes fetched via /api/recipes/list (admin client, anon_id scoped)
+  - Actual: direct Supabase SDK call in component, bypasses API route rule, no anon_id validation
+  - File hint: app/recipes/page.tsx:27-35 — createClient().from('recipes').select('*').is('user_id', null)
+  - Fix: create GET /api/recipes/list route (admin client) and replace component call
+
+- [x] BUG-004: Marking a meal cooked from the planner auto-redirects to home after 1.6s with no opt-out | Priority: MED | From: code audit 2026-05-07
   - File: app/planner/page.tsx:111 — setTimeout(() => router.push('/'), 1600)
   - After marking any single meal cooked, the user is forcibly navigated home. Breaks the flow for users managing multiple meals (marking several as cooked, swapping others). No way to cancel or stay on planner.
   - Reproduce: open planner with multiple uncooked meals → mark one cooked → observe auto-navigation to home 1.6 s later.
   - Fix: remove the auto-redirect; let the toast message fade on its own and keep the user on the planner.
 
-- [ ] BUG-005: Recipe detail page (/recipes/[id]) has no BottomNav — users are stranded | Priority: MED | From: code audit 2026-05-07
+- [x] BUG-005: Recipe detail page (/recipes/[id]) has no BottomNav — users are stranded | Priority: MED | From: code audit 2026-05-07
   - File: app/recipes/[id]/page.tsx — root element is a bare <div>, no BottomNav imported or rendered.
   - After tapping "Let's cook →" (home) or "Recipe" (planner), users land on the recipe page with no way to navigate elsewhere except the "Back" button. On mobile web there is no persistent nav.
   - Fix: add <BottomNav /> at the bottom of the RecipeDetailPage return and change the root <div> to <main>.
@@ -47,3 +63,7 @@
 ## Processed (do not delete — useful context)
 # - [x] [TASK]: [description] — done: [date] | agent: [who did it]
 - [x] BUG-003: Regenerating a plan orphans cooked meals — done: 2026-05-07 | agent: backend-engineer
+- [x] BUG-004: Planner auto-redirect on mark cooked — done: 2026-05-07 | agent: backend-engineer
+- [x] BUG-005: Recipe detail no BottomNav — done: 2026-05-07 | agent: backend-engineer
+- [x] BUG-006: Preferences save failure — done: 2026-05-07 | agent: backend-engineer
+- [x] BUG-007: Recipe bank direct Supabase call — done: 2026-05-07 | agent: backend-engineer
