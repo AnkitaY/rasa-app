@@ -439,10 +439,11 @@ Generate all 7 days in order: Mon, Tue, Wed, Thu, Fri, Sat, Sun.`
   }
 
   // 9. Persist pantry snapshot to preferences
+  // Use upsert so the row is created if missing — pure update is a no-op when
+  // the preferences row doesn't exist yet, which breaks pantry pre-fill.
   await admin
     .from('user_preferences')
-    .update({ last_pantry_input: pantry_input })
-    .eq('anon_id', anon_id)
+    .upsert({ anon_id, last_pantry_input: pantry_input }, { onConflict: 'anon_id' })
 
   return NextResponse.json({
     ok: true,

@@ -47,7 +47,8 @@
 - [x] BUG-005: Recipe detail page (/recipes/[id]) has no BottomNav — users are stranded | Priority: MED | From: code audit 2026-05-07
   - File: app/recipes/[id]/page.tsx — root element is a bare <div>, no BottomNav imported or rendered.
   - After tapping "Let's cook →" (home) or "Recipe" (planner), users land on the recipe page with no way to navigate elsewhere except the "Back" button. On mobile web there is no persistent nav.
-  - Fix: add <BottomNav /> at the bottom of the RecipeDetailPage return and change the root <div> to <main>.
+  - Initial fix (2026-05-07): added <BottomNav /> directly in page component — WRONG, created duplicate nav.
+  - Corrected fix (2026-05-08): removed <BottomNav /> from page — layout.tsx already renders it globally for all routes. Verified by Playwright E2E regression test. Deployed via PR #2.
 
 ## Testing tasks
 - [x] Set up test framework: Vitest + React Testing Library (decided 2026-05-07) | Priority: HIGH | From: founder — done: 2026-05-08 | agent: test-engineer
@@ -57,7 +58,7 @@
 - [x] Set up Playwright E2E tests (54 tests across onboarding, home, planner, recipes flows) | Priority: MED | From: founder — done: 2026-05-08 | agent: test-engineer
 
 ## Feature improvements
-- [ ] IMP-001: generate-v2 saves last_pantry_input via update (no-op if prefs row missing) — use upsert instead | Priority: LOW | From: code audit 2026-05-07
+- [x] IMP-001: generate-v2 saves last_pantry_input via update (no-op if prefs row missing) — use upsert instead | Priority: LOW | From: code audit 2026-05-07
   - File: app/api/plans/generate-v2/route.ts:384-387
   - Edge case: if preferences row doesn't exist at generate time, pantry pre-fill on next visit never works.
 

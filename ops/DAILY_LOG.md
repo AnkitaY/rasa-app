@@ -16,3 +16,5 @@
 2026-05-07 qa-agent: Phase 1 QA pass (9 flows) → done | 2 new HIGH bugs logged (BUG-006 preferences save failure in prod, BUG-007 recipe bank direct Supabase); flows 1-8 PASS on static audit; BUG-001/002/003 fixes verified
 2026-05-07 backend-engineer: SOP updated — removed feature-branch requirement | CLAUDE.md + backend-engineer + frontend-engineer + lead-engineer + code-reviewer agents now commit directly to main; /review still required before every push
 2026-05-07 backend-engineer: BUG-004/005/006/007 pushed to master (c8b7384) → Vercel deployed ✓ | https://rasa-app-woad.vercel.app/ responding 200
+2026-05-08 backend-engineer: HOTFIX production DB permissions → done | GRANT ALL on user_preferences + meals to service_role; confirmed via REST 200 + POST /api/preferences/save returning {"ok":true}; root cause was Phase 1 tables created without service_role grants
+2026-05-09 backend-engineer main IMP-001 — generate-v2 last_pantry_input now uses upsert so pantry pre-fill works even when preferences row is missing at generate time
