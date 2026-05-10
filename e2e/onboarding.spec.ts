@@ -74,10 +74,29 @@ test.describe('Onboarding — no existing preferences', () => {
     await expect(textarea).toHaveValue(/Vegetarian/)
   })
 
-  test('step 1 — clicking Next navigates to /onboarding/who-for', async ({ page }) => {
+  test('step 1 — Next button is disabled until a chip or text is entered', async ({ page }) => {
     await page.goto('/onboarding')
 
-    // Skip chip selection — clicking Next with no restrictions is valid
+    const nextBtn = page.getByRole('button', { name: /Next/ })
+    await expect(nextBtn).toBeDisabled()
+
+    // Selecting any chip enables Next
+    await page.getByRole('button', { name: 'None' }).click()
+    await expect(nextBtn).toBeEnabled()
+
+    // Deselecting disables again
+    await page.getByRole('button', { name: 'None' }).click()
+    await expect(nextBtn).toBeDisabled()
+
+    // Typing in free text also enables Next
+    await page.getByPlaceholder(/e.g. No pork/).fill('No shellfish')
+    await expect(nextBtn).toBeEnabled()
+  })
+
+  test('step 1 — clicking Next with a chip selected navigates to /onboarding/who-for', async ({ page }) => {
+    await page.goto('/onboarding')
+
+    await page.getByRole('button', { name: 'None' }).click()
     await page.getByRole('button', { name: /Next/ }).click()
     await page.waitForURL('**/onboarding/who-for', { timeout: 8_000 })
     await expect(page).toHaveURL(/\/onboarding\/who-for/)
