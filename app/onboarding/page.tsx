@@ -34,6 +34,7 @@ export default function OnboardingDietPage() {
   const [selected, setSelected] = useState<string[]>([])
   const [freeText, setFreeText] = useState('')
   const isNone = selected.includes('None')
+  const canProceed = selected.length > 0 || freeText.trim().length > 0
 
   // Pre-fill from sessionStorage if user navigated back
   useEffect(() => {
@@ -179,7 +180,13 @@ export default function OnboardingDietPage() {
         {/* CTA */}
         <button
           onClick={handleNext}
-          className="w-full py-4 rounded-xl bg-p1-terra text-white text-sm font-ui font-semibold tracking-wide active:opacity-80 transition-opacity"
+          disabled={!canProceed}
+          className={cn(
+            'w-full py-4 rounded-xl text-sm font-ui font-semibold tracking-wide transition-opacity',
+            canProceed
+              ? 'bg-p1-terra text-white active:opacity-80'
+              : 'bg-p1-terra/40 text-white/60 cursor-not-allowed'
+          )}
         >
           Next →
         </button>
