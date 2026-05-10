@@ -1,0 +1,1409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rasa — UX Handoff · Phase 1</title>
+<style>
+  :root {
+    --bg: #fafaf9;
+    --bg-card: #ffffff;
+    --bg-secondary: #f5f5f4;
+    --bg-danger: #fef2f2;
+    --bg-warning: #fffbeb;
+    --bg-success: #f0fdf4;
+    --bg-info: #eff6ff;
+    --bg-purple: #faf5ff;
+    --text-primary: #0c0a09;
+    --text-secondary: #57534e;
+    --text-tertiary: #a8a29e;
+    --text-danger: #b91c1c;
+    --text-warning: #92400e;
+    --text-success: #166534;
+    --text-info: #1e40af;
+    --text-purple: #6b21a8;
+    --border: #e7e5e4;
+    --border-danger: #fca5a5;
+    --border-warning: #fcd34d;
+    --border-success: #86efac;
+    --border-info: #93c5fd;
+    --border-purple: #d8b4fe;
+    --radius-sm: 5px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text-primary);
+    line-height: 1.5;
+    padding: 0;
+  }
+
+  /* ── Layout ── */
+  .page-header {
+    background: var(--text-primary);
+    color: white;
+    padding: 2rem 2.5rem;
+  }
+  .page-header h1 { font-size: 22px; font-weight: 600; letter-spacing: -.02em; margin-bottom: 4px; }
+  .page-header .meta { font-size: 12px; opacity: .5; }
+  .page-header .meta span { margin-right: 20px; }
+
+  .toc {
+    background: var(--bg-secondary);
+    border-bottom: 0.5px solid var(--border);
+    padding: 1rem 2.5rem;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .toc-item {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: white;
+    border: 0.5px solid var(--border);
+    color: var(--text-secondary);
+    cursor: default;
+  }
+
+  .body { padding: 2rem 2.5rem; max-width: 1000px; }
+
+  /* ── Section structure ── */
+  .section { margin-bottom: 2.5rem; }
+  .section-header {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 1rem;
+    padding-bottom: .5rem;
+    border-bottom: 1.5px solid var(--text-primary);
+  }
+  .section-number { font-size: 11px; font-weight: 700; color: var(--text-tertiary); }
+  .section-title { font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
+  .section-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 1rem; }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--bg-card);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1rem 1.25rem;
+    margin-bottom: 10px;
+  }
+  .card:last-child { margin-bottom: 0; }
+
+  /* ── Grids ── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+
+  /* ── Labels ── */
+  .label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    margin-bottom: .625rem;
+  }
+  .sub-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+    margin-top: 12px;
+  }
+  .sub-label:first-child { margin-top: 0; }
+
+  /* ── Tags / badges ── */
+  .tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+  }
+  .tag-cut { background: var(--bg-danger); color: var(--text-danger); border: 0.5px solid var(--border-danger); }
+  .tag-change { background: var(--bg-warning); color: var(--text-warning); border: 0.5px solid var(--border-warning); }
+  .tag-new { background: var(--bg-success); color: var(--text-success); border: 0.5px solid var(--border-success); }
+  .tag-keep { background: var(--bg-secondary); color: var(--text-secondary); border: 0.5px solid var(--border); }
+  .tag-p2 { background: var(--bg-purple); color: var(--text-purple); border: 0.5px solid var(--border-purple); }
+  .tag-info { background: var(--bg-info); color: var(--text-info); border: 0.5px solid var(--border-info); }
+
+  /* ── Content rows ── */
+  .row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    padding: 6px 0;
+    border-bottom: 0.5px solid var(--border);
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+  .row:last-child { border-bottom: none; padding-bottom: 0; }
+  .row:first-child { padding-top: 0; }
+  .row-icon { flex-shrink: 0; font-size: 11px; margin-top: 1px; width: 14px; }
+
+  /* ── Step flow ── */
+  .step-list { display: flex; flex-direction: column; }
+  .step {
+    display: grid;
+    grid-template-columns: 32px 1fr;
+    gap: 12px;
+    padding: .75rem 0;
+    border-bottom: 0.5px solid var(--border);
+    align-items: flex-start;
+  }
+  .step:last-child { border-bottom: none; padding-bottom: 0; }
+  .step:first-child { padding-top: 0; }
+  .step-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .step-body {}
+  .step-title { font-size: 12px; font-weight: 600; color: var(--text-primary); margin-bottom: 3px; }
+  .step-detail { font-size: 11px; color: var(--text-secondary); line-height: 1.5; }
+  .step-example { font-size: 10px; color: var(--text-tertiary); font-style: italic; margin-top: 4px; line-height: 1.4; }
+  .step-ac { font-size: 10px; color: var(--text-success); margin-top: 5px; font-weight: 500; }
+
+  /* ── Acceptance criteria ── */
+  .ac-list { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+  .ac-item {
+    display: flex;
+    gap: 7px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    padding: 5px 8px;
+    background: var(--bg-success);
+    border-radius: var(--radius-sm);
+    border: 0.5px solid var(--border-success);
+  }
+  .ac-check { color: var(--text-success); font-weight: 700; flex-shrink: 0; }
+
+  /* ── Copy examples ── */
+  .copy-pair { margin-bottom: 8px; }
+  .copy-bad {
+    font-size: 11px;
+    padding: 6px 10px;
+    background: var(--bg-danger);
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    color: var(--text-danger);
+    border: 0.5px solid var(--border-danger);
+    border-bottom: none;
+  }
+  .copy-bad::before { content: '✕  '; font-weight: 700; }
+  .copy-good {
+    font-size: 11px;
+    padding: 6px 10px;
+    background: var(--bg-success);
+    border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+    color: var(--text-success);
+    border: 0.5px solid var(--border-success);
+    font-weight: 500;
+  }
+  .copy-good::before { content: '✓  '; font-weight: 700; }
+
+  /* ── Screen spec card ── */
+  .screen-card {
+    background: var(--bg-card);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .screen-card:last-child { margin-bottom: 0; }
+  .screen-header {
+    padding: .875rem 1.25rem;
+    border-bottom: 0.5px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    background: var(--bg-secondary);
+  }
+  .screen-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+  .screen-route { font-size: 11px; color: var(--text-tertiary); font-family: monospace; }
+  .screen-body { padding: 1rem 1.25rem; }
+  .screen-section { margin-bottom: 14px; }
+  .screen-section:last-child { margin-bottom: 0; }
+
+  /* ── Info callout ── */
+  .callout {
+    border-radius: var(--radius-md);
+    padding: .75rem 1rem;
+    margin-bottom: 12px;
+    font-size: 11px;
+    line-height: 1.6;
+    display: flex;
+    gap: 8px;
+  }
+  .callout-icon { flex-shrink: 0; font-size: 13px; }
+  .callout-info { background: var(--bg-info); color: var(--text-info); border: 0.5px solid var(--border-info); }
+  .callout-warn { background: var(--bg-warning); color: var(--text-warning); border: 0.5px solid var(--border-warning); }
+  .callout-success { background: var(--bg-success); color: var(--text-success); border: 0.5px solid var(--border-success); }
+  .callout-danger { background: var(--bg-danger); color: var(--text-danger); border: 0.5px solid var(--border-danger); }
+
+  /* ── Interaction spec ── */
+  .interaction {
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    margin-bottom: 8px;
+  }
+  .interaction-trigger {
+    padding: 8px 12px;
+    background: var(--bg-secondary);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border-bottom: 0.5px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .interaction-body {
+    padding: 8px 12px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  /* ── Divider ── */
+  .divider { height: 0.5px; background: var(--border); margin: .75rem 0; }
+
+  /* ── Change summary table ── */
+  .change-row {
+    display: grid;
+    grid-template-columns: 140px 1fr auto;
+    gap: 12px;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 0.5px solid var(--border);
+    font-size: 11px;
+  }
+  .change-row:last-child { border-bottom: none; }
+  .change-what { font-weight: 500; color: var(--text-primary); }
+  .change-detail { color: var(--text-secondary); line-height: 1.4; }
+
+  /* ── Phase exit box ── */
+  .exit-box {
+    background: var(--text-primary);
+    color: white;
+    border-radius: var(--radius-lg);
+    padding: 1.25rem 1.5rem;
+  }
+  .exit-title { font-size: 13px; font-weight: 600; margin-bottom: 10px; opacity: .6; text-transform: uppercase; letter-spacing: .06em; }
+  .exit-item { font-size: 12px; line-height: 1.7; display: flex; gap: 8px; opacity: .85; }
+  .exit-icon { opacity: .5; }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>Rasa — UX Design Handoff</h1>
+  <div class="meta">
+    <span>Phase 1</span>
+    <span>From: PM</span>
+    <span>To: UX</span>
+    <span>Status: Ready for design</span>
+    <span>Ref doc: rasa_plan_engine_v2.html</span>
+  </div>
+</div>
+
+<div class="toc">
+  <div class="toc-item">1. Context & Goal</div>
+  <div class="toc-item">2. Tone of Voice</div>
+  <div class="toc-item">3. Colour Palette</div>
+  <div class="toc-item">4. What's Changing</div>
+  <div class="toc-item">5. Onboarding (New)</div>
+  <div class="toc-item">6. Home / Today</div>
+  <div class="toc-item">7. Weekly Planner</div>
+  <div class="toc-item">8. Plan Generation Flow</div>
+  <div class="toc-item">9. Recipe Bank</div>
+  <div class="toc-item">10. Recipe Detail</div>
+  <div class="toc-item">11. Profile (New)</div>
+  <div class="toc-item">12. This Week's Pantry</div>
+  <div class="toc-item">13. Shopping List</div>
+  <div class="toc-item">14. Feedback Loop</div>
+  <div class="toc-item">15. Exit Criteria</div>
+</div>
+
+<div class="body">
+
+<!-- ─── 1. CONTEXT ─── -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-number">01</span>
+    <span class="section-title">Context & Phase 1 Goal</span>
+  </div>
+
+  <div class="callout callout-info">
+    <span class="callout-icon">ℹ</span>
+    <span>Phase 0 is complete — a functional app with first-cut UX exists at <strong>rasa-app-woad.vercel.app</strong>. Phase 1 is not a rebuild. It is a focused redesign of user flows and experiences based on a thorough product brainstorm. Work from the existing design system and component library where possible.</span>
+  </div>
+
+  <div class="card">
+    <div class="label">What Rasa is</div>
+    <p style="font-size:12px; color: var(--text-secondary); line-height: 1.7; margin-bottom: 10px;">
+      Rasa is a home cooking companion — not a meal planning app, not a recipe database. It understands your lifestyle, your family, your fridge, and your actual week, then makes the entire loop from planning to shopping to cooking to feeling proud feel effortless and warm. <strong style="color:var(--text-primary)">Healthy by default, without any tracking.</strong>
+    </p>
+    <div class="label">Phase 1 north star</div>
+    <p style="font-size:12px; color: var(--text-secondary); line-height: 1.7; margin-bottom: 10px;">
+      The founder (sole Phase 1 user) goes from a fridge snapshot to a delightful, personalised meal plan to actual meals cooked — in under 5 minutes of total app interaction per week. Every design decision should be tested against: <em>"does this make that journey shorter, clearer, or more delightful?"</em>
+    </p>
+    <div class="label">User context</div>
+    <p style="font-size:12px; color: var(--text-secondary); line-height: 1.7;">
+      Single user, desktop-first, household with family. Feedback prompts shown in-app (no push notifications in Phase 1). The founder is not a beginner cook but finds meal planning mentally exhausting. The app should feel like relief, not another task.
+    </p>
+  </div>
+</div>
+
+<!-- ─── 2. TONE ─── -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-number">02</span>
+    <span class="section-title">Tone of Voice</span>
+  </div>
+
+  <div class="callout callout-success">
+    <span class="callout-icon">✦</span>
+    <span><strong>Every word in the app</strong> — labels, empty states, confirmations, errors, tips, prompts — should sound like a trusted friend who happens to know a lot about cooking. Warm, direct, occasionally funny. Never clinical. Never corporate.</span>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="label" style="color: var(--text-danger);">Never write like this</div>
+      <div class="copy-pair">
+        <div class="copy-bad">Please select your dietary restrictions from the options below.</div>
+        <div class="copy-good">Anything we should never put on the menu? Allergies, things you'd rather forget exist?</div>
+      </div>
+      <div class="copy-pair">
+        <div class="copy-bad">Error: Inventory update failed. Please try again.</div>
+        <div class="copy-good">Hmm, something went wrong saving that. Give it one more try?</div>
+      </div>
+      <div class="copy-pair">
+        <div class="copy-bad">Meal plan generated successfully. 7 meals added.</div>
+        <div class="copy-good">Your week is sorted. 7 dinners, zero decision fatigue.</div>
+      </div>
+      <div class="copy-pair" style="margin-bottom:0">
+        <div class="copy-bad">No recipes found. Add recipes to your recipe bank to get started.</div>
+        <div class="copy-good">Your recipe bank is empty for now — it fills up the moment you generate your first plan.</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="label">Rules</div>
+      <div class="row"><span class="row-icon" style="color:var(--text-success)">✓</span> Use contractions. "You're" not "You are."</div>
+      <div class="row"><span class="row-icon" style="color:var(--text-success)">✓</span> Humour is welcome — when it fits naturally. Never forced.</div>
+      <div class="row"><span class="row-icon" style="color:var(--text-success)">✓</span> Celebrate small wins. Cooking is hard — acknowledge it warmly.</div>
+      <div class="row"><span class="row-icon" style="color:var(--text-success)">✓</span> Short sentences. One idea at a time.</div>
+      <div class="row"><span class="row-icon" style="color:var(--text-success)">✓</span> Use "pantry" not "inventory." "Meals" not "meal entities."</div>
+      <div class="row"><span class="row-icon" style="color:var(--text-danger)">✕</span> No guilt. Never imply she didn't cook enough or plan poorly.</div>
+      <div class="row"><span class="row-icon" style="color:var(--text-danger)">✕</span> No passive voice. Active and direct always.</div>
+      <div class="row"><span class="row-icon" style="color:var(--text-danger)">✕</span> Never write "successfully." If it worked, just say what happened.</div>
+      <div class="row"><span class="row-icon" style="color:var(--text-danger)">✕</span> No sarcasm or "clever" copy that could land wrong.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── 3. COLOUR PALETTE ─── -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-number">03</span>
+    <span class="section-title">Colour Palette & Visual Direction</span>
+  </div>
+
+  <div class="callout callout-info">
+    <span class="callout-icon">ℹ</span>
+    <span>The current app is too white — white page, white cards, white nav creates flat hierarchy and no warmth. The fix is a warm cream canvas, one dark rich hero moment ("What's Cooking" card), and two accent colours that each carry semantic meaning. The structure is: <strong>warm background → white cards lift off it → dark hero dominates → terracotta for action, forest for success.</strong></span>
+  </div>
+
+  <div class="card">
+    <div class="label">The seven colours — and what each one does</div>
+    <div style="display:grid; grid-template-columns: repeat(7,1fr); gap:8px; margin-bottom:16px;">
+
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div style="height:56px;border-radius:var(--radius-md);background:#FAF7F2;border:0.5px solid #E0D5C8;"></div>
+        <div style="font-size:11px;font-weight:500;color:var(--text-primary);">Page bg</div>
+        <div style="font-family:monospace;font-size:10px;color:var(--text-tertiary);">#FAF7F2</div>
+        <div style="font-size:10px;color:var(--text-secondary);line-height:1.4;">Warm cream. Replaces cold white on every page. Cards lift off this.</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div style="height:56px;border-radius:var(--radius-md);background:#FFFFFF;border:0.5px solid #E0D5C8;"></div>
+        <div style="font-size:11px;font-weight:500;color:var(--text-primary);">Cards</div>
+        <div style="font-family:monospace;font-size:10px;color:var(--text-tertiary);">#FFFFFF</div>
+        <div style="font-size:10px;color:var(--text-secondary);line-height:1.4;">Pure white cards. Creates subtle depth against the cream background.</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div style="height:56px;border-radius:var(--radius-md);background:#EDE0D0;"></div>
+        <div style="font-size:11px;font-weight:500;color:var(--text-primary);">Surfaces</div>
+        <div style="font-family:monospace;font-size:10px;color:var(--text-tertiary);">#EDE0D0</div>
+        <div style="font-size:10px;color:var(--text-secondary);line-height:1.4;">Section headers, chip backgrounds, secondary surfaces.</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div style="height:56px;border-radius:var(--radius-md);background:#C4522A;"></div>
+        <div style="font-size:11px;font-weight:500;color:var(--text-primary);">Terracotta</div>
+        <div style="font-family:monospace;font-size:10px;color:var(--text-tertiary);">#C4522A</div>
+        <div style="font-size:10px;color:var(--text-secondary);line-height:1.4;"><strong>"What's Cooking" hero card.</strong> Primary CTAs. Active step indicator. Tonight's meal tag.</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div style="height:56px;border-radius:var(--radius-md);background:#2D5B3F;"></div>
+        <div style="font-size:11px;font-weight:500;color:var(--text-primary);">Forest</div>
+        <div style="font-family:monospace;font-size:10px;color:var(--text-tertiary);">#2D5B3F</div>
+        <div style="font-size:10px;color:var(--text-secondary);line-height:1.4;"><strong>Success & completion only.</strong> Cooked meals, "Everyone loved it", doneness tips. Never used for primary actions.</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div style="height:56px;border-radius:var(--radius-md);background:#6B4226;"></div>
+        <div style="font-size:11px;font-weight:500;color:var(--text-primary);">Mid brown</div>
+        <div style="font-family:monospace;font-size:10px;color:var(--text-tertiary);">#6B4226</div>
+        <div style="font-size:10px;color:var(--text-secondary);line-height:1.4;">Secondary text, labels, metadata, sublabels. The warm alternative to grey.</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div style="height:56px;border-radius:var(--radius-md);background:#2B1C12;"></div>
+        <div style="font-size:11px;font-weight:500;color:var(--text-primary);">Dark</div>
+        <div style="font-family:monospace;font-size:10px;color:var(--text-tertiary);">#2B1C12</div>
+        <div style="font-size:10px;color:var(--text-secondary);line-height:1.4;">Navigation bar. Primary body text. The anchor of the palette.</div>
+      </div>
+
+    </div>
+
+    <div class="divider"></div>
+    <div class="label" style="margin-top:12px;">Semantic colour rules — use these consistently</div>
+    <div class="grid-2">
+      <div>
+        <div class="sub-label">Terracotta #C4522A is used for</div>
+        <div class="row"><span class="row-icon">→</span> "What's Cooking" hero card background — always</div>
+        <div class="row"><span class="row-icon">→</span> Primary CTAs: "Let's cook", "Plan my week", "Done cooking"</div>
+        <div class="row"><span class="row-icon">→</span> Active/selected state on chips, steps, nav items</div>
+        <div class="row"><span class="row-icon">→</span> Timing and heads-up tip callouts in recipe steps</div>
+        <div class="row"><span class="row-icon">→</span> "Tonight" and urgency tags on meal cards</div>
+        <div class="row"><span class="row-icon">→</span> Active day indicator in the week-at-a-glance strip</div>
+      </div>
+      <div>
+        <div class="sub-label">Forest #2D5B3F is used for</div>
+        <div class="row"><span class="row-icon">→</span> Cooked meal state on planner cards</div>
+        <div class="row"><span class="row-icon">→</span> "Everyone loved it" feedback option</div>
+        <div class="row"><span class="row-icon">→</span> Doneness and success tip callouts in recipe steps</div>
+        <div class="row"><span class="row-icon">→</span> Secondary cuisine chip selection (vs. terracotta for primary)</div>
+        <div class="row"><span class="row-icon">→</span> Completed days in the week strip</div>
+        <div class="row"><span class="row-icon">→</span> Positive confirmation states</div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="label" style="margin-top:12px;">What this palette replaces — and what to avoid</div>
+    <div class="grid-2">
+      <div>
+        <div class="sub-label" style="color:var(--text-danger);">Remove</div>
+        <div class="row"><span class="row-icon" style="color:var(--text-danger)">✕</span> Cold white (#FFFFFF) as the page background — replace with #FAF7F2</div>
+        <div class="row"><span class="row-icon" style="color:var(--text-danger)">✕</span> Cool grey text (#6B7280 / Tailwind gray-500) — replace with #6B4226</div>
+        <div class="row"><span class="row-icon" style="color:var(--text-danger)">✕</span> Default blue links and focus states — replace with terracotta</div>
+        <div class="row"><span class="row-icon" style="color:var(--text-danger)">✕</span> shadcn/ui default green success states — replace with forest #2D5B3F</div>
+      </div>
+      <div>
+        <div class="sub-label" style="color:var(--text-danger);">Never use</div>
+        <div class="row"><span class="row-icon" style="color:var(--text-danger)">✕</span> Terracotta and forest on the same element — they are siblings, not partners</div>
+        <div class="row"><span class="row-icon" style="color:var(--text-danger)">✕</span> Terracotta for success/completion states — that's forest's role</div>
+        <div class="row"><span class="row-icon" style="color:var(--text-danger)">✕</span> Forest for primary actions or CTAs — that's terracotta's role</div>
+        <div class="row"><span class="row-icon" style="color:var(--text-danger)">✕</span> Any new colours introduced without PM sign-off</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="border-color:#C4522A;">
+    <div class="label">The one rule that matters most</div>
+    <p style="font-size:12px;color:var(--text-secondary);line-height:1.7;">The <strong style="color:var(--text-primary);">"What's Cooking" card must always be terracotta</strong> — on every screen state, every day of the week, regardless of what meal is planned. It is the visual anchor of the Home screen. Everything else on the page should defer to it. If the card ever looks like just another card, something has gone wrong with the hierarchy.</p>
+  </div>
+
+</div>
+
+<!-- ─── 4. WHAT'S CHANGING ─── -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-number">04</span>
+    <span class="section-title">What's Changing from Phase 0</span>
+  </div>
+  <div class="card">
+    <div class="change-row" style="font-weight:700; color: var(--text-tertiary); font-size:10px; text-transform:uppercase; letter-spacing:.06em; padding-top:0;">
+      <div>Element</div><div>What changes</div><div>Action</div>
+    </div>
+    <div class="change-row">
+      <div class="change-what">Lock toggles on planner</div>
+      <div class="change-detail">Collaboration feature, irrelevant for a single-user household. Adds UI complexity with zero payoff.</div>
+      <span class="tag tag-cut">Remove entirely</span>
+    </div>
+    <div class="change-row">
+      <div class="change-what">Macro display</div>
+      <div class="change-detail">Remove all calorie and macro number displays. Replace with nothing — healthy by default means she never has to think about numbers. If a "balanced" indicator is needed, use a subtle label, not figures.</div>
+      <span class="tag tag-cut">Remove entirely</span>
+    </div>
+    <div class="change-row">
+      <div class="change-what">Fridge page</div>
+      <div class="change-detail">Rename to "This week's pantry." Completely reframe purpose — no longer a persistent inventory. Becomes a session-based free-text input that triggers plan generation. Persistent inventory DB is dropped.</div>
+      <span class="tag tag-change">Reframe completely</span>
+    </div>
+    <div class="change-row">
+      <div class="change-what">Recipe entry form</div>
+      <div class="change-detail">Replace the multi-field form with a single free-text paste area. User pastes recipe from Instagram, a blog, WhatsApp — anywhere. AI parses and structures it. She reviews and saves.</div>
+      <span class="tag tag-change">Redesign flow</span>
+    </div>
+    <div class="change-row">
+      <div class="change-what">"Fridge" nav label</div>
+      <div class="change-detail">Rename nav item from "Fridge" to "Pantry" everywhere. Consistent naming throughout.</div>
+      <span class="tag tag-change">Rename</span>
+    </div>
+    <div class="change-row">
+      <div class="change-what">Onboarding</div>
+      <div class="change-detail">New 3-question fast-launch flow before any plan is generated. Currently no onboarding exists.</div>
+      <span class="tag tag-new">New screens</span>
+    </div>
+    <div class="change-row">
+      <div class="change-what">Plan generation flow</div>
+      <div class="change-detail">New dedicated flow: pantry input + week context → plan. Replaces the single "Generate Week Plan" button with a proper conversation moment.</div>
+      <span class="tag tag-new">New flow</span>
+    </div>
+    <div class="change-row">
+      <div class="change-what">Recipe detail page</div>
+      <div class="change-detail">Add embedded cooking tips per step. Add collapsible "Prep ahead" section. These must be part of the recipe card design for all recipes including imports.</div>
+      <span class="tag tag-new">New components</span>
+    </div>
+    <div class="change-row">
+      <div class="change-what">Meal feedback flow</div>
+      <div class="change-detail">New in-app prompt shown when user opens app after a meal was cooked: "How did [Meal] land tonight?" — 3 tap options. Shown once per meal, never repeated.</div>
+      <span class="tag tag-new">New interaction</span>
+    </div>
+    <div class="change-row">
+      <div class="change-what">Meal swap flow</div>
+      <div class="change-detail">Replace or enhance simple swap. Now includes reason selection (Out of an ingredient / No time / Something else) before alternatives are shown. Reason drives smarter suggestions.</div>
+      <span class="tag tag-new">New flow</span>
+    </div>
+    <div class="change-row">
+      <div class="change-what">Plan reasoning</div>
+      <div class="change-detail">Each planned meal shows a one-line AI reasoning note inline. "Uses your spinach before it expires." Builds trust. Must be visually subtle — supporting info, not dominant.</div>
+      <span class="tag tag-new">New element</span>
+    </div>
+  </div>
+</div>
+
+<!-- ─── 4. ONBOARDING ─── -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-number">05</span>
+    <span class="section-title">Onboarding — 3 Questions, Then Immediate Value</span>
+  </div>
+
+  <div class="callout callout-warn">
+    <span class="callout-icon">⚠</span>
+    <span><strong>Core principle:</strong> Never make her feel like she's filling out a form before she gets value. These 3 questions are the absolute minimum needed to not fail. After question 3, she is taken directly to the pantry input screen and generates her first plan immediately. Everything else surfaces gradually — through a Profile screen she explores when ready, or inferred automatically from behaviour over time.</span>
+  </div>
+
+  <div class="screen-card">
+    <div class="screen-header">
+      <span class="screen-name">Onboarding — Screen 1 of 3</span>
+      <span class="screen-route">/onboarding/1</span>
+    </div>
+    <div class="screen-body">
+      <div class="screen-section">
+        <div class="label">Question</div>
+        <p style="font-size:13px; font-weight:500; color:var(--text-primary); margin-bottom:6px;">"Any dietary rules or allergies we must know about?"</p>
+        <div class="label">Input type</div>
+        <p style="font-size:12px; color:var(--text-secondary);">Free text field. Also offer quick-tap chips below for common cases: Vegetarian · Vegan · Halal · Gluten-free · Dairy-free. Chips populate the text field, user can still edit freely.</p>
+        <div class="label" style="margin-top:10px;">Why first</div>
+        <p style="font-size:12px; color:var(--text-secondary);">A plan that violates a dietary rule or allergy is worse than no plan. This question cannot be skipped — but it can be left blank ("None") if nothing applies.</p>
+      </div>
+      <div class="ac-list">
+        <div class="ac-item"><span class="ac-check">✓</span> "None / no restrictions" is a clearly available option — skip is not forced-blank</div>
+        <div class="ac-item"><span class="ac-check">✓</span> Quick-tap chips for most common cases to reduce typing</div>
+        <div class="ac-item"><span class="ac-check">✓</span> Progress indicator visible (1 of 3) — she knows how long this is</div>
+        <div class="ac-item"><span class="ac-check">✓</span> Tone: warm, not clinical. Not "Select dietary restrictions." See tone section.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="screen-card">
+    <div class="screen-header">
+      <span class="screen-name">Onboarding — Screen 2 of 3</span>
+      <span class="screen-route">/onboarding/2</span>
+    </div>
+    <div class="screen-body">
+      <div class="screen-section">
+        <div class="label">Question</div>
+        <p style="font-size:13px; font-weight:500; color:var(--text-primary); margin-bottom:6px;">"Who are you cooking for?"</p>
+        <div class="label">Input type</div>
+        <p style="font-size:12px; color:var(--text-secondary);">Single-select cards with brief descriptions. Not a dropdown — this is an identity question and deserves space.</p>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:8px;">
+          <div style="border:0.5px solid var(--border); border-radius:var(--radius-md); padding:.625rem; font-size:11px;">
+            <div style="font-weight:600; color:var(--text-primary); margin-bottom:2px;">Just me</div>
+            <div style="color:var(--text-tertiary);">Solo cooking, my taste only</div>
+          </div>
+          <div style="border:0.5px solid var(--border); border-radius:var(--radius-md); padding:.625rem; font-size:11px;">
+            <div style="font-weight:600; color:var(--text-primary); margin-bottom:2px;">Me and a partner</div>
+            <div style="color:var(--text-tertiary);">Two adults, shared meals</div>
+          </div>
+          <div style="border:0.5px solid var(--border); border-radius:var(--radius-md); padding:.625rem; font-size:11px;">
+            <div style="font-weight:600; color:var(--text-primary); margin-bottom:2px;">Family with young kids</div>
+            <div style="color:var(--text-tertiary);">Children under 10 at the table</div>
+          </div>
+          <div style="border:0.5px solid var(--border); border-radius:var(--radius-md); padding:.625rem; font-size:11px;">
+            <div style="font-weight:600; color:var(--text-primary); margin-bottom:2px;">Family with teens</div>
+            <div style="color:var(--text-tertiary);">Older kids, bigger appetites</div>
+          </div>
+        </div>
+        <div class="label" style="margin-top:10px;">Why it matters</div>
+        <p style="font-size:12px; color:var(--text-secondary);">This single choice shapes spice tolerance, portion size, recipe complexity, and texture for every plan generated. A plan built for adults that lands on a 6-year-old's plate is wrong — regardless of cuisine.</p>
+      </div>
+      <div class="ac-list">
+        <div class="ac-item"><span class="ac-check">✓</span> Options displayed as cards, not a dropdown or radio list</div>
+        <div class="ac-item"><span class="ac-check">✓</span> Selection state is visually clear — selected card is distinct</div>
+        <div class="ac-item"><span class="ac-check">✓</span> One tap to select, no confirm needed — auto-advances or shows Next</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="screen-card">
+    <div class="screen-header">
+      <span class="screen-name">Onboarding — Screen 3 of 3</span>
+      <span class="screen-route">/onboarding/3</span>
+    </div>
+    <div class="screen-body">
+      <div class="screen-section">
+        <div class="label">Question</div>
+        <p style="font-size:13px; font-weight:500; color:var(--text-primary); margin-bottom:6px;">"What's your primary cuisine — and what else do you enjoy?"</p>
+        <div class="label">Input type</div>
+        <p style="font-size:12px; color:var(--text-secondary);">Two-level selection. First, select ONE primary cuisine (the one she eats 60–70% of the time). Then, tap any secondary cuisines to weave in. This is not a flat multi-select — hierarchy matters to the plan generator.</p>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">
+          <div style="padding:6px 12px; border-radius:20px; font-size:11px; font-weight:600; background:var(--text-primary); color:white;">Indian</div>
+          <div style="padding:6px 12px; border-radius:20px; font-size:11px; border:0.5px solid var(--border); color:var(--text-secondary);">Italian</div>
+          <div style="padding:6px 12px; border-radius:20px; font-size:11px; border:0.5px solid var(--border); color:var(--text-secondary);">Thai</div>
+          <div style="padding:6px 12px; border-radius:20px; font-size:11px; border:0.5px solid var(--border); color:var(--text-secondary);">Mexican</div>
+          <div style="padding:6px 12px; border-radius:20px; font-size:11px; border:0.5px solid var(--border); color:var(--text-secondary);">Mediterranean</div>
+          <div style="padding:6px 12px; border-radius:20px; font-size:11px; border:0.5px solid var(--border); color:var(--text-secondary);">Japanese</div>
+          <div style="padding:6px 12px; border-radius:20px; font-size:11px; border:0.5px solid var(--border); color:var(--text-secondary);">Chinese</div>
+          <div style="padding:6px 12px; border-radius:20px; font-size:11px; border:0.5px solid var(--border); color:var(--text-secondary);">Middle Eastern</div>
+        </div>
+        <p style="font-size:11px; color:var(--text-tertiary); margin-top:8px; font-style:italic;">UX note: Consider a two-step UI — "Pick your main" first, then "What else do you love?" as a second prompt on the same screen. Keeps the hierarchy clear without two separate screens.</p>
+      </div>
+      <div class="ac-list">
+        <div class="ac-item"><span class="ac-check">✓</span> Primary selection is visually distinct from secondary (e.g. filled chip vs outlined)</div>
+        <div class="ac-item"><span class="ac-check">✓</span> Only one primary can be selected at a time — selecting a new one deselects the old</div>
+        <div class="ac-item"><span class="ac-check">✓</span> Secondary selections are optional — "skip for now" option visible</div>
+        <div class="ac-item"><span class="ac-check">✓</span> After this screen → immediately lands on Plan Generation flow, not home</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="background:var(--bg-secondary);">
+    <div class="label">What surfaces later — NOT during onboarding</div>
+    <div class="grid-2">
+      <div>
+        <div class="sub-label">Via Profile screen (she finds when ready)</div>
+        <div class="row"><span class="row-icon">→</span> Cooking skill level</div>
+        <div class="row"><span class="row-icon">→</span> Weeknight time budget</div>
+        <div class="row"><span class="row-icon">→</span> Meal goals (affordability / explorer / comfort)</div>
+        <div class="row"><span class="row-icon">→</span> "Never on the menu" ingredients</div>
+      </div>
+      <div>
+        <div class="sub-label">Inferred from behaviour (never asked)</div>
+        <div class="row"><span class="row-icon">→</span> Which nights she actually cooks</div>
+        <div class="row"><span class="row-icon">→</span> Complexity ceiling (from swaps/skips)</div>
+        <div class="row"><span class="row-icon">→</span> Pantry anchors (items always present)</div>
+        <div class="row"><span class="row-icon">→</span> Proven winners vs. retired meals</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── 5. HOME ─── -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-number">06</span>
+    <span class="section-title">Home / Today View</span>
+  </div>
+  <div class="callout callout-info">
+    <span class="callout-icon">ℹ</span>
+    <span>The existing Home screen shows today's planned dishes, a cooking session card, and quick actions — good bones. This section refines and tightens that experience, including renaming the cooking session card (see below).</span>
+  </div>
+  <div class="screen-card">
+    <div class="screen-header">
+      <span class="screen-name">Home</span>
+      <span class="screen-route">/</span>
+    </div>
+    <div class="screen-body">
+
+      <div class="screen-section">
+        <div class="label">"What's Cooking" card — primary hero</div>
+        <p style="font-size:11px; color:var(--text-tertiary); line-height:1.5; margin-bottom:6px; font-style:italic;">Naming note: Previously "Tonight's Kitchen" — renamed because cooking sessions happen at any time of day. Breakfast at 7am, lunch, dinner — the card must work for all of them. "What's Cooking" is warm, timeless, and carries no time-of-day assumption.</p>
+        <p style="font-size:12px; color:var(--text-secondary); line-height:1.6; margin-bottom:8px;">This is the most important element on the screen. When a meal is planned, this card dominates. It shows: meal name, estimated cook time, a prep-ahead note if relevant ("Marinate the chicken now if you have 5 minutes"), and two CTAs — one to enter the step-by-step cook mode, one to view the full recipe detail.</p>
+        <div class="callout callout-success" style="margin-bottom:10px;">
+          <span class="callout-icon">✦</span>
+          <span><strong>Two ways to cook, both preserved.</strong> The "What's Cooking" card offers two entry points: <strong>"Let's cook"</strong> launches the step-by-step cook mode (carousel, existing implementation — keep as-is). <strong>"View full recipe"</strong> opens the recipe detail page. These are complementary, not competing. Cook mode is for active kitchen use; recipe detail is for reading ahead, checking ingredients, or referencing the prep-ahead notes.</span>
+        </div>
+        <div class="ac-list">
+          <div class="ac-item"><span class="ac-check">✓</span> Card is the visual anchor of the screen — not just another item in a list</div>
+          <div class="ac-item"><span class="ac-check">✓</span> "Let's cook" → launches existing step-by-step cook mode. Do not remove or replace.</div>
+          <div class="ac-item"><span class="ac-check">✓</span> "View full recipe" → opens recipe detail page. Secondary CTA, visually lighter than "Let's cook"</div>
+          <div class="ac-item"><span class="ac-check">✓</span> Shows prep-ahead note when relevant — pulls from recipe's prep-ahead section</div>
+          <div class="ac-item"><span class="ac-check">✓</span> "Swap this meal" accessible from the card without going to the planner</div>
+          <div class="ac-item"><span class="ac-check">✓</span> If no meal planned: warm empty state. "Nothing planned right now — fancy a spontaneous one?" with quick link to planner.</div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="screen-section">
+        <div class="label">Week at a glance</div>
+        <p style="font-size:12px; color:var(--text-secondary); line-height:1.6; margin-bottom:8px;">Compact horizontal scroll or mini-calendar showing which days have meals planned this week. Tapping a day's meal should navigate to that recipe. Days without meals should be visually distinct but not alarming — not every night needs a plan.</p>
+        <div class="ac-list">
+          <div class="ac-item"><span class="ac-check">✓</span> Today is visually highlighted</div>
+          <div class="ac-item"><span class="ac-check">✓</span> Cooked meals are visually marked as done — distinct from planned-but-not-yet</div>
+          <div class="ac-item"><span class="ac-check">✓</span> Empty days look intentional, not like broken UI</div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="screen-section">
+        <div class="label">Feedback prompt — when applicable</div>
+        <p style="font-size:12px; color:var(--text-secondary); line-height:1.6; margin-bottom:8px;">When the user opens the app and a meal was marked as cooked the previous evening but not yet rated, show a gentle in-line prompt at the top of Home: "How did [Meal Name] land last night?" with 3 tap options. Dismissable. Never shown more than once per meal.</p>
+        <div class="ac-list">
+          <div class="ac-item"><span class="ac-check">✓</span> Prompt appears as an in-context card, not a modal or alert</div>
+          <div class="ac-item"><span class="ac-check">✓</span> 3 options: "Everyone loved it 🙌" / "It was alright" / "Won't make again"</div>
+          <div class="ac-item"><span class="ac-check">✓</span> Can be dismissed without rating — never shown again for that meal</div>
+          <div class="ac-item"><span class="ac-check">✓</span> Tone: warm and casual, not a survey. "How did it land?" not "Rate this meal."</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ─── 6. WEEKLY PLANNER ─── -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-number">07</span>
+    <span class="section-title">Weekly Planner</span>
+  </div>
+  <div class="screen-card">
+    <div class="screen-header">
+      <span class="screen-name">Weekly Planner</span>
+      <span class="screen-route">/planner</span>
+    </div>
+    <div class="screen-body">
+
+      <div class="screen-section">
+        <div class="label">Meal cards — what each shows</div>
+        <p style="font-size:12px; color:var(--text-secondary); line-height:1.6; margin-bottom:8px;">Each planned meal card displays: meal name, cook time, a one-line reasoning note (subtle, secondary typography — e.g. "Uses your spinach before it expires"), and action affordances (swap, mark as cooked). Cooked meals show their feedback rating if given.</p>
+        <div class="ac-list">
+          <div class="ac-item"><span class="ac-check">✓</span> Reasoning note is visually subordinate — supporting info, not headline</div>
+          <div class="ac-item"><span class="ac-check">✓</span> Lock toggles are fully removed — do not appear anywhere</div>
+          <div class="ac-item"><span class="ac-check">✓</span> "Mark as cooked" action is accessible directly from the meal card</div>
+          <div class="ac-item"><span class="ac-check">✓</span> Cooked state is visually distinct — a checked/done indicator, not a deletion</div>
+          <div class="ac-item"><span class="ac-check">✓</span> Meal feedback rating shows on card if given (e.g. a small "loved it" indicator)</div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="screen-section">
+        <div class="label">Swap flow — triggered from meal card</div>
+        <div class="step-list">
+          <div class="step">
+            <div class="step-num" style="background:var(--bg-info); color:var(--text-info);">1</div>
+            <div class="step-body">
+              <div class="step-title">User taps "Swap"</div>
+              <div class="step-detail">A reason prompt appears — compact, below or adjacent to the card. Not a modal if avoidable.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num" style="background:var(--bg-info); color:var(--text-info);">2</div>
+            <div class="step-body">
+              <div class="step-title">Reason selection (3 options)</div>
+              <div class="step-detail">Tap to select one reason. Each reason drives different replacement logic in the AI.</div>
+              <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;">
+                <div style="padding:5px 10px; border-radius:20px; font-size:11px; border:0.5px solid var(--border); color:var(--text-secondary);">🧅 Missing an ingredient</div>
+                <div style="padding:5px 10px; border-radius:20px; font-size:11px; border:0.5px solid var(--border); color:var(--text-secondary);">⏱ No time tonight</div>
+                <div style="padding:5px 10px; border-radius:20px; font-size:11px; border:0.5px solid var(--border); color:var(--text-secondary);">✏️ Something else</div>
+              </div>
+              <div class="step-example">"Something else" opens a short free-text field. "Missing an ingredient" prompts "Which one?" — optional — to refine alternatives.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num" style="background:var(--bg-info); color:var(--text-info);">3</div>
+            <div class="step-body">
+              <div class="step-title">2–3 alternatives shown inline</div>
+              <div class="step-detail">Alternatives appear below the reason. She taps one to replace. Rest of the week's plan is untouched.</div>
+              <div class="ac-list" style="margin-top:8px;">
+                <div class="ac-item"><span class="ac-check">✓</span> Only this meal is replaced — never the full week plan</div>
+                <div class="ac-item"><span class="ac-check">✓</span> Alternatives are constrained to her current pantry where possible</div>
+                <div class="ac-item"><span class="ac-check">✓</span> "None of these work" option → opens text field for free request</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="screen-section">
+        <div class="label">Empty state — no plan yet</div>
+        <p style="font-size:12px; color:var(--text-secondary); line-height:1.6;">When no plan exists, the planner should not show an empty calendar grid. Show a warm, clear call to action: "Your week's a blank canvas. Let's sort that." → CTA to Plan Generation flow.</p>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="screen-section">
+        <div class="label">Manual mid-week regeneration</div>
+        <p style="font-size:12px; color:var(--text-secondary); line-height:1.6;">A "Rethink remaining meals" option should be accessible from the planner — not prominent, but findable. This triggers the Plan Generation flow but scoped to remaining uncooked meals only, using a fresh pantry input. Note for ENG: the prompt to Claude must be constrained to pantry-on-hand only — no new shopping should be implied.</p>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ─── 7. PLAN GENERATION ─── -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-number">08</span>
+    <span class="section-title">Plan Generation Flow</span>
+  </div>
+  <div class="callout callout-success">
+    <span class="callout-icon">✦</span>
+    <span>This is the most important flow in the app. It happens every week and is the moment she gets value. It should feel like a conversation with a thoughtful friend, not a form submission.</span>
+  </div>
+  <div class="screen-card">
+    <div class="screen-header">
+      <span class="screen-name">Plan Generation</span>
+      <span class="screen-route">/planner/generate</span>
+    </div>
+    <div class="screen-body">
+      <div class="screen-section">
+        <div class="step-list">
+          <div class="step">
+            <div class="step-num" style="background:var(--bg-warning); color:var(--text-warning);">1</div>
+            <div class="step-body">
+              <div class="step-title">Pantry input — free text, no units required</div>
+              <div class="step-detail">Large, comfortable text area. Prompt copy: "What's in your fridge and pantry right now?" Sub-copy: "Just list what you have — no need for amounts." She types or pastes a comma-separated list, or writes naturally.</div>
+              <div class="step-example">"chicken thighs, pasta, canned tomatoes, garlic, spinach, eggs, half a block of paneer"</div>
+              <div class="step-ac">If quantities are missing for some items, that's fine — the AI handles it gracefully.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num" style="background:var(--bg-warning); color:var(--text-warning);">2</div>
+            <div class="step-body">
+              <div class="step-title">Week context — optional conversational field</div>
+              <div class="step-detail">Below the pantry input, a second field. Prompt copy: "Anything about this week we should know?" Sub-copy: "Busy nights, guests coming, want to eat lighter — anything helps." This is optional but strongly encouraged. Shown with a softer visual weight than the pantry field.</div>
+              <div class="step-example">"Busy Thursday, parents visiting Saturday. Want to keep it lighter overall this week."</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num" style="background:var(--bg-warning); color:var(--text-warning);">3</div>
+            <div class="step-body">
+              <div class="step-title">Use soon — optional third prompt</div>
+              <div class="step-detail">A third lightweight field below week context. Prompt copy: "Anything that needs using up soon?" This is where she flags items that aren't necessarily expiring today but shouldn't sit another week — wilting veg, leftovers, things she overbought. AI treats anything listed here as highest priority — slots them into Monday and Tuesday meals before planning anything else. Visually the lightest of the three fields; optional with no pressure.</div>
+              <div class="step-example">"Wilting spinach, some sausages from last week, half a block of tofu I need to use."</div>
+              <div class="ac-list" style="margin-top:8px;">
+                <div class="ac-item"><span class="ac-check">✓</span> Separate from the main pantry field — she might not think to mention expiring items when listing what she has</div>
+                <div class="ac-item"><span class="ac-check">✓</span> Free text — no structure required. "Sausages" is fine. "Sausages 400g expires Tuesday" is also fine.</div>
+                <div class="ac-item"><span class="ac-check">✓</span> AI reasoning note on the plan should reference this: "Monday uses your sausages before they go off"</div>
+              </div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num" style="background:var(--bg-success); color:var(--text-success);">4</div>
+            <div class="step-body">
+              <div class="step-title">Generation — loading state</div>
+              <div class="step-detail">A warm, engaged loading experience. Not a spinner on a blank page. Show something that communicates what's happening — "Figuring out how to use that spinach first…" or "Building your week around what you've got…". 10–15 seconds expected.</div>
+              <div class="ac-list" style="margin-top:8px;">
+                <div class="ac-item"><span class="ac-check">✓</span> Loading copy should be conversational and specific to her inputs — not generic</div>
+                <div class="ac-item"><span class="ac-check">✓</span> No blank spinner — give her something warm to look at</div>
+              </div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num" style="background:var(--bg-success); color:var(--text-success);">5</div>
+            <div class="step-body">
+              <div class="step-title">Plan reveal — the wow moment</div>
+              <div class="step-detail">The plan lands with impact. Each meal shows its name, cook time, and its one-line reasoning note. The transition from loading to plan should feel like something arriving, not just data appearing. After the plan is shown, generated recipes are automatically saved to the recipe bank — a subtle confirmation note: "These recipes have been saved to your bank."</div>
+              <div class="ac-list" style="margin-top:8px;">
+                <div class="ac-item"><span class="ac-check">✓</span> Meal reasoning is visible immediately — not hidden behind an expand</div>
+                <div class="ac-item"><span class="ac-check">✓</span> "Shopping list ready" shortcut visible — she can go straight to what to buy</div>
+                <div class="ac-item"><span class="ac-check">✓</span> Subtle confirmation that recipes were saved to her bank</div>
+                <div class="ac-item"><span class="ac-check">✓</span> Plan reveal should feel like arrival — consider a subtle animation</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── 8. RECIPE BANK ─── -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-number">09</span>
+    <span class="section-title">Recipe Bank</span>
+  </div>
+  <div class="screen-card">
+    <div class="screen-header">
+      <span class="screen-name">Recipe Bank</span>
+      <span class="screen-route">/recipes</span>
+    </div>
+    <div class="screen-body">
+
+      <div class="screen-section">
+        <div class="label">Adding a recipe — replace the multi-field form</div>
+        <div class="callout callout-danger" style="margin-bottom:12px;">
+          <span class="callout-icon">✕</span>
+          <span>The current multi-field recipe entry form (name, ingredients, steps as separate fields) is being replaced. It creates too much friction for the primary use case: pasting a recipe from Instagram, a blog, or WhatsApp.</span>
+        </div>
+        <div class="step-list">
+          <div class="step">
+            <div class="step-num" style="background:var(--bg-info); color:var(--text-info);">1</div>
+            <div class="step-body">
+              <div class="step-title">"Add a recipe" → single large text area</div>
+              <div class="step-detail">One large paste area. Prompt copy: "Paste a recipe from anywhere — Instagram, a blog, WhatsApp, wherever you found it. Or just type it out." No structure required — raw text is fine.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num" style="background:var(--bg-info); color:var(--text-info);">2</div>
+            <div class="step-body">
+              <div class="step-title">AI parses and structures it</div>
+              <div class="step-detail">AI extracts: recipe name, ingredients (with quantities where present), ordered steps. It also generates inline cooking tips per step and a prep-ahead section. This happens automatically. Loading state: "Sorting your recipe out…"</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num" style="background:var(--bg-info); color:var(--text-info);">3</div>
+            <div class="step-body">
+              <div class="step-title">Review and save</div>
+              <div class="step-detail">Structured recipe is shown for review. She can edit any field before saving. One tap to confirm. Recipe lands in the bank immediately.</div>
+              <div class="ac-list" style="margin-top:8px;">
+                <div class="ac-item"><span class="ac-check">✓</span> Review screen uses the same recipe detail layout — she sees exactly how it will look</div>
+                <div class="ac-item"><span class="ac-check">✓</span> All fields are editable before saving</div>
+                <div class="ac-item"><span class="ac-check">✓</span> Cooking tips and prep-ahead section visible in review — she can remove any she doesn't want</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="screen-section">
+        <div class="label">Recipe bank list view</div>
+        <p style="font-size:12px; color:var(--text-secondary); line-height:1.6; margin-bottom:8px;">Cards showing recipe name, cuisine, cook time, and feedback indicator if rated ("Everyone loved it" / "Won't make again"). No complex filtering needed for Phase 1 — simple search by name is sufficient. Recipes auto-added from plan generation are labelled "AI suggested" until she cooks them.</p>
+        <div class="ac-list">
+          <div class="ac-item"><span class="ac-check">✓</span> Feedback indicator visible on card — she can see at a glance what's a winner</div>
+          <div class="ac-item"><span class="ac-check">✓</span> AI-suggested recipes visually distinguished from user-imported ones</div>
+          <div class="ac-item"><span class="ac-check">✓</span> Empty state: warm, not blank. "Your bank fills up as you plan. Generate your first week to get started."</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ─── 9. RECIPE DETAIL ─── -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-number">10</span>
+    <span class="section-title">Recipe Detail</span>
+  </div>
+  <div class="callout callout-info">
+    <span class="callout-icon">ℹ</span>
+    <span>The recipe detail page is where cooking actually happens. It needs to be functional during active cooking — large text, clear step-by-step progression, and embedded tips that feel like a knowledgeable friend whispering at exactly the right moment. Remove all macro/calorie displays.</span>
+  </div>
+  <div class="callout callout-success">
+    <span class="callout-icon">✦</span>
+    <span><strong>Step-by-step cook mode — preserve existing implementation.</strong> The app already has a carousel-style step-by-step cook mode accessible from the "What's Cooking" card. This is a separate experience from the recipe detail page and must not be removed. Recipe detail = full recipe for reading and reference. Cook mode = focused step-by-step for active kitchen use, one step at a time. Phase 1 work on this screen is additive only: embed cooking tips per step and add the prep-ahead section. The carousel mechanic itself stays untouched.</span>
+  </div>
+  <div class="screen-card">
+    <div class="screen-header">
+      <span class="screen-name">Recipe Detail</span>
+      <span class="screen-route">/recipes/[id]</span>
+    </div>
+    <div class="screen-body">
+
+      <div class="screen-section">
+        <div class="label">Header info</div>
+        <p style="font-size:12px; color:var(--text-secondary); line-height:1.6; margin-bottom:8px;">Recipe name, cuisine tag, cook time, serves count. No calorie or macro information — removed entirely.</p>
+        <div class="label" style="margin-top:10px;">Measurement toggle — Cups · Grams · Both</div>
+        <p style="font-size:12px; color:var(--text-secondary); line-height:1.6; margin-bottom:8px;">A small 3-way toggle in the recipe header, next to the serves count. Switches all ingredient quantities in the recipe — and in cook mode — to the selected system for this session. No global preference needed; she toggles per recipe as she sees fit.</p>
+        <div class="callout callout-info" style="margin-bottom:8px;">
+          <span class="callout-icon">ℹ</span>
+          <span>Why per-recipe, not global: the same person uses cups for savory cooking and grams for baking. A global setting would be wrong half the time. The toggle is always visible and one tap — no friction.</span>
+        </div>
+        <div class="ac-list">
+          <div class="ac-item"><span class="ac-check">✓</span> Default: Both — shows "1½ cups / 300g" so she always has a reference before she's chosen her preference</div>
+          <div class="ac-item"><span class="ac-check">✓</span> Toggle state carries through from recipe detail into cook mode for the same recipe — they stay in sync</div>
+          <div class="ac-item"><span class="ac-check">✓</span> Applies to ingredient list, step quantities, and cooking tip quantities</div>
+          <div class="ac-item"><span class="ac-check">✓</span> No persistence required — resets to Both on next open. She'll flip it in 1 tap if she needs to.</div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="screen-section">
+        <div class="label">Prep ahead — collapsible section, shown before ingredients</div>
+        <p style="font-size:12px; color:var(--text-secondary); line-height:1.6; margin-bottom:8px;">A collapsible card at the top of the recipe, before ingredients. Shows what can be done ahead of time — earlier in the day, or the night before. Example: "Marinate the chicken for at least 1 hour — do this now if you have time." Visible but collapsed by default if nothing time-sensitive; expanded by default if something should be done soon.</p>
+        <div class="ac-list">
+          <div class="ac-item"><span class="ac-check">✓</span> Shown before the ingredient list — because prep-ahead prep may change what she does right now</div>
+          <div class="ac-item"><span class="ac-check">✓</span> AI generates this for all recipes, including imports</div>
+          <div class="ac-item"><span class="ac-check">✓</span> Collapsible — not always the first thing she needs, but visible when relevant</div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="screen-section">
+        <div class="label">Recipe steps with embedded cooking tips</div>
+        <p style="font-size:12px; color:var(--text-secondary); line-height:1.6; margin-bottom:10px;">Each step has its instruction text. Below that, optionally, an embedded tip — a distinct visual treatment (subtle coloured callout, not a modal, not a popup). The tip appears as part of the step, not as a separate tips section.</p>
+
+        <div style="border:0.5px solid var(--border); border-radius:var(--radius-md); overflow:hidden; max-width:480px;">
+          <div style="padding:.75rem 1rem; border-bottom:0.5px solid var(--border); display:grid; grid-template-columns:28px 1fr; gap:10px;">
+            <div style="width:24px; height:24px; border-radius:50%; background:var(--bg-secondary); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; color:var(--text-tertiary);">3</div>
+            <div>
+              <div style="font-size:12px; color:var(--text-primary); line-height:1.5; margin-bottom:6px;">Add onions and cook until golden brown.</div>
+              <div style="background:var(--bg-warning); border-left:2px solid #F59E0B; border-radius:0 var(--radius-sm) var(--radius-sm) 0; padding:6px 10px; font-size:11px; color:var(--text-warning); line-height:1.5;">⏱ This takes 10–12 minutes on medium — not 3. Don't rush on high heat. The sweetness that makes the dish comes from patient onions. While you wait, clean the chopping board.</div>
+            </div>
+          </div>
+          <div style="padding:.75rem 1rem; display:grid; grid-template-columns:28px 1fr; gap:10px;">
+            <div style="width:24px; height:24px; border-radius:50%; background:var(--bg-secondary); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; color:var(--text-tertiary);">4</div>
+            <div>
+              <div style="font-size:12px; color:var(--text-primary); line-height:1.5; margin-bottom:6px;">Add tomatoes, ginger, garlic. Cook until oil separates.</div>
+              <div style="background:var(--bg-success); border-left:2px solid #22C55E; border-radius:0 var(--radius-sm) var(--radius-sm) 0; padding:6px 10px; font-size:11px; color:var(--text-success); line-height:1.5;">✓ "Oil separates" means you'll see ghee pooling at the edges of the masala — that's your signal, not the clock. Usually 6–8 minutes.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sub-label" style="margin-top:12px;">Four tip types — different visual treatments per type</div>
+        <div class="grid-2" style="gap:8px;">
+          <div style="border:0.5px solid var(--border-warning); border-radius:var(--radius-sm); padding:.625rem; background:var(--bg-warning);">
+            <div style="font-size:10px; font-weight:700; color:var(--text-warning); margin-bottom:3px;">⏱ TIMING REALITY CHECK</div>
+            <div style="font-size:11px; color:var(--text-warning);">"This takes 10–12 min, not 3." Used when recipes understate time.</div>
+          </div>
+          <div style="border:0.5px solid var(--border-success); border-radius:var(--radius-sm); padding:.625rem; background:var(--bg-success);">
+            <div style="font-size:10px; font-weight:700; color:var(--text-success); margin-bottom:3px;">✓ DONENESS SIGNAL</div>
+            <div style="font-size:11px; color:var(--text-success);">"Oil separates at the edges — that's your cue." Used for visual/sensory outcomes.</div>
+          </div>
+          <div style="border:0.5px solid var(--border-danger); border-radius:var(--radius-sm); padding:.625rem; background:var(--bg-danger);">
+            <div style="font-size:10px; font-weight:700; color:var(--text-danger); margin-bottom:3px;">⚠ HEADS UP</div>
+            <div style="font-size:11px; color:var(--text-danger);">"The sauce looks curdled — keep stirring." Prevents panic at alarming-but-normal moments.</div>
+          </div>
+          <div style="border:0.5px solid var(--border); border-radius:var(--radius-sm); padding:.625rem; background:var(--bg-secondary);">
+            <div style="font-size:10px; font-weight:700; color:var(--text-tertiary); margin-bottom:3px;">✦ CLEAN AS YOU GO</div>
+            <div style="font-size:11px; color:var(--text-secondary);">"While you wait, wipe the board." Converts idle time into cleanup — no cleanup feature needed.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="screen-section">
+        <div class="label">"Serve with" — functional accompaniment field</div>
+
+        <div class="callout callout-warn">
+          <span class="callout-icon">⚠</span>
+          <span><strong>This applies to manually added and imported recipes only.</strong> AI-generated recipes are complete meals by default — protein, carb, and vegetable already included in one recipe with coordinated steps. This field exists for single-dish recipes that arrive via paste or manual entry.</span>
+        </div>
+
+        <p style="font-size:12px; color:var(--text-secondary); line-height:1.6; margin-bottom:10px;">When a recipe is saved (imported or manual), the AI checks whether it constitutes a complete meal — protein + carb + vegetable. If a component is missing, it pre-fills a "Serve with" suggestion. She can accept, edit, or dismiss. This field is functional, not decorative: its ingredients feed into the shopping list and planner display.</p>
+
+        <div class="sub-label">How it works end to end</div>
+        <div class="step-list">
+          <div class="step">
+            <div class="step-num" style="background:var(--bg-info); color:var(--text-info);">1</div>
+            <div class="step-body">
+              <div class="step-title">At recipe save — AI detects and suggests</div>
+              <div class="step-detail">After parsing the recipe, AI assesses completeness. If it's a single dish, it pre-fills "Serve with" with a suggestion. One tap to accept, or she edits it freely. Fully dismissable — she might always cook rice from habit and not need the app to track it.</div>
+              <div class="step-example">AI pre-fill: "Basmati rice or warm naan" → she edits to "roti" → saves</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num" style="background:var(--bg-info); color:var(--text-info);">2</div>
+            <div class="step-body">
+              <div class="step-title">In the planner — full meal shown</div>
+              <div class="step-detail">When this recipe is included in a week's plan, the meal entry shows both components. The planner entry reads "Dal Tadka + Roti" — not just "Dal Tadka." She can see the complete meal at a glance.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num" style="background:var(--bg-info); color:var(--text-info);">3</div>
+            <div class="step-body">
+              <div class="step-title">On the shopping list — accompaniment included</div>
+              <div class="step-detail">Accompaniment ingredients are automatically added to the shopping list when this recipe is planned. Grouped under the meal, clearly labelled. If she dismissed "Serve with," nothing is added — that's her choice.</div>
+              <div class="step-example">Shopping list: "Dal Tadka + Roti — red lentils, ghee, tomatoes, atta flour"</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num" style="background:var(--bg-info); color:var(--text-info);">4</div>
+            <div class="step-body">
+              <div class="step-title">In cook mode — brief note, not a coordinated session</div>
+              <div class="step-detail">A persistent note at the top of cook mode: "Also make: roti." Not a full parallel recipe track — that's Phase 2. Most accompaniments (rice, bread, simple salads) don't need step-by-step guidance. She sees the reminder, handles it herself.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ac-list" style="margin-top:10px;">
+          <div class="ac-item"><span class="ac-check">✓</span> AI skips the prompt for recipes already complete — a chicken tray-bake with veg included doesn't get a "Serve with" suggestion</div>
+          <div class="ac-item"><span class="ac-check">✓</span> "Serve with" is editable after saving — she can update it anytime from the recipe detail page</div>
+          <div class="ac-item"><span class="ac-check">✓</span> Dismissing it is valid — no guilt, no re-prompting</div>
+          <div class="ac-item"><span class="ac-check">✓</span> Planner and shopping list only include accompaniment when "Serve with" is set — not assumed</div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="screen-section">
+        <div class="label">Mark as cooked — primary action</div>
+        <p style="font-size:12px; color:var(--text-secondary); line-height:1.6;">"Done cooking" button at the bottom of the recipe. Tapping it marks the meal as cooked in the planner. No feedback prompt here — the family hasn't eaten yet. The prompt surfaces the next time she opens the app.</p>
+        <div class="ac-list">
+          <div class="ac-item"><span class="ac-check">✓</span> Prominent — this is a key tap in the product loop</div>
+          <div class="ac-item"><span class="ac-check">✓</span> Confirmation copy: "Nice work. Dinner's done." — warm acknowledgement, not just a checkbox</div>
+          <div class="ac-item"><span class="ac-check">✓</span> Navigates back to Home after marking cooked</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ─── PROFILE ─── -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-number">11</span>
+    <span class="section-title">Profile — Preferences & Settings</span>
+  </div>
+
+  <div class="callout callout-warn">
+    <span class="callout-icon">⚠</span>
+    <span><strong>Profile is in scope for Phase 1.</strong> Without it, the progressive disclosure model breaks — deferred settings from onboarding become inaccessible forever, not just deferred. "Never on the menu" ingredients especially must be editable somewhere. This is a minimal preferences screen, not a full account management page. Keep it simple and functional.</span>
+  </div>
+
+  <div class="screen-card">
+    <div class="screen-header">
+      <span class="screen-name">Profile / Preferences</span>
+      <span class="screen-route">/profile</span>
+    </div>
+    <div class="screen-body">
+
+      <div class="screen-section">
+        <div class="label">How to reach it</div>
+        <p style="font-size:12px; color:var(--text-secondary); line-height:1.6;">Accessible via a settings or profile icon in the nav — not a primary nav item. It should feel like a place she visits occasionally to adjust things, not part of the main workflow. A small icon in the corner of the nav bar is sufficient.</p>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="screen-section">
+        <div class="label">What it contains — all editable, grouped in two blocks</div>
+
+        <div class="sub-label">Block 1 — From onboarding (editable here if she wants to change them)</div>
+        <div class="row"><span class="row-icon">→</span> Dietary rules & allergies — free text, editable</div>
+        <div class="row"><span class="row-icon">→</span> Who I'm cooking for — single select, same options as onboarding</div>
+        <div class="row"><span class="row-icon">→</span> Primary cuisine — single select chip</div>
+        <div class="row"><span class="row-icon">→</span> Secondary cuisines — multi-select chips</div>
+
+        <div class="sub-label" style="margin-top:12px;">Block 2 — Deferred from onboarding (not asked upfront, set here)</div>
+        <div class="row"><span class="row-icon">→</span> <strong>Never on the menu</strong> — free text. "Ingredients or dishes we should never suggest." Parsed by AI same as dietary rules. Most important field in this block.</div>
+        <div class="row"><span class="row-icon">→</span> <strong>Cooking skill</strong> — single select: "Still finding my feet / Pretty confident / I enjoy the challenge"</div>
+        <div class="row"><span class="row-icon">→</span> <strong>Weeknight time budget</strong> — single select: "Under 30 min / 30–45 min / An hour is fine"</div>
+        <div class="row"><span class="row-icon">→</span> <strong>Meal goals</strong> — single select: "Keeping costs low / Trying new recipes each week / Rotating meals I love"</div>
+        <div class="row"><span class="row-icon">→</span> <strong>Which meals to plan</strong> — checkboxes: Breakfast · Lunch · Dinner. Dinner pre-selected by default. <span style="font-size:10px; background:var(--bg-purple); color:var(--text-purple); padding:1px 6px; border-radius:4px; font-weight:500;">Phase 2 — field visible, greyed out with "Coming soon"</span>. Capture intent now; multi-slot planner UI ships in Phase 2. Do not build the multi-meal planner in Phase 1.</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="screen-section">
+        <div class="label">Design guidance</div>
+        <p style="font-size:12px; color:var(--text-secondary); line-height:1.6; margin-bottom:8px;">This is a settings screen, not a form. It should feel calm and browsable — she scans it, adjusts what she wants, leaves. No wizard, no save button per field. One "Save changes" at the bottom or auto-save per field. Tone of voice applies here too — labels should sound like the onboarding questions, not like database field names.</p>
+        <div class="ac-list">
+          <div class="ac-item"><span class="ac-check">✓</span> Block 1 fields pre-filled from onboarding answers — she shouldn't re-enter what she already told us</div>
+          <div class="ac-item"><span class="ac-check">✓</span> Block 2 fields empty by default with friendly placeholder copy encouraging her to fill them in</div>
+          <div class="ac-item"><span class="ac-check">✓</span> "Never on the menu" placeholder: "Mushrooms? Cilantro? Anything goes here."</div>
+          <div class="ac-item"><span class="ac-check">✓</span> No account settings, no password, no notifications panel — out of scope for Phase 1</div>
+          <div class="ac-item"><span class="ac-check">✓</span> Changes take effect on the next plan generation — no need to explain this technically, just say "Your next plan will reflect these preferences."</div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="screen-section">
+        <div class="label">What's explicitly out of scope for Phase 1</div>
+        <div class="row"><span class="row-icon" style="color:var(--text-danger)">✕</span> Avatar, display name, account management</div>
+        <div class="row"><span class="row-icon" style="color:var(--text-danger)">✕</span> Notification preferences (no push notifications in Phase 1)</div>
+        <div class="row"><span class="row-icon" style="color:var(--text-danger)">✕</span> Multiple household member profiles</div>
+        <div class="row"><span class="row-icon" style="color:var(--text-danger)">✕</span> Preference history or change log</div>
+        <div class="row"><span class="row-icon" style="color:var(--text-danger)">✕</span> Connected apps or integrations</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ─── 11. PANTRY ─── -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-number">12</span>
+    <span class="section-title">This Week's Pantry (formerly Fridge)</span>
+  </div>
+  <div class="callout callout-danger">
+    <span class="callout-icon">✕</span>
+    <span><strong>The persistent inventory model is gone.</strong> No database of items with quantities, categories, and expiry dates. The existing Fridge page data is being dropped — there is no real data in the DB to migrate. The page is being completely reframed.</span>
+  </div>
+  <div class="screen-card">
+    <div class="screen-header">
+      <span class="screen-name">This Week's Pantry</span>
+      <span class="screen-route">/pantry</span>
+    </div>
+    <div class="screen-body">
+
+      <div class="screen-section">
+        <div class="label">New purpose</div>
+        <p style="font-size:12px; color:var(--text-secondary); line-height:1.6; margin-bottom:8px;">This page is the gateway to plan generation, not a managed database. It shows the pantry input she gave at the last plan generation, and invites her to update it and regenerate. The data is session-based — it reflects what she told us, not a live database of her kitchen.</p>
+      </div>
+
+      <div class="screen-section">
+        <div class="label">What the page shows</div>
+        <div class="row"><span class="row-icon">→</span> Her last pantry input (what she told us last time, displayed clearly)</div>
+        <div class="row"><span class="row-icon">→</span> An editable text area to update it</div>
+        <div class="row"><span class="row-icon">→</span> "Regenerate plan with this" CTA — triggers Plan Generation flow</div>
+        <div class="row"><span class="row-icon">→</span> If no pantry input yet: a warm empty state prompting her to start</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="screen-section">
+        <div class="label">Naming — consistent everywhere</div>
+        <p style="font-size:12px; color:var(--text-secondary); line-height:1.6;">Page title, nav label, and all copy use "Pantry" — not "Fridge", not "Inventory". This name appears consistently in the nav, in the plan generation flow, and in AI reasoning notes.</p>
+        <div class="ac-list">
+          <div class="ac-item"><span class="ac-check">✓</span> Nav label: "Pantry" (was "Fridge")</div>
+          <div class="ac-item"><span class="ac-check">✓</span> Page title: "This week's pantry"</div>
+          <div class="ac-item"><span class="ac-check">✓</span> No "inventory" anywhere in the UI</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ─── 13. SHOPPING LIST ─── -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-number">13</span>
+    <span class="section-title">Shopping List</span>
+  </div>
+  <div class="screen-card">
+    <div class="screen-header">
+      <span class="screen-name">Shopping List</span>
+      <span class="screen-route">/shopping</span>
+    </div>
+    <div class="screen-body">
+
+      <div class="screen-section">
+        <div class="label">What it is</div>
+        <p style="font-size:12px; color:var(--text-secondary); line-height:1.6; margin-bottom:8px;">A one-way output — plan ingredients minus what she has in her pantry. Generated automatically when a plan is created. No sync back to the pantry database (because there isn't one). Checking off items in-store is for her convenience only.</p>
+        <div class="callout callout-info" style="margin-top:8px;">
+          <span class="callout-icon">ℹ</span>
+          <span>The list must show which plan it belongs to: "Shopping for week of [date]." Without this, the list feels like it's floating with no context.</span>
+        </div>
+      </div>
+
+      <div class="screen-section">
+        <div class="label">Acceptance criteria</div>
+        <div class="ac-list">
+          <div class="ac-item"><span class="ac-check">✓</span> "Shopping for week of [date]" clearly shown — list is contextualised</div>
+          <div class="ac-item"><span class="ac-check">✓</span> Items can be checked off — purely for in-store use, no back-sync</div>
+          <div class="ac-item"><span class="ac-check">✓</span> Items grouped by category (Produce / Protein / Pantry / Dairy) — scanning a flat list in a supermarket is friction</div>
+          <div class="ac-item"><span class="ac-check">✓</span> "Copy list" option — lets her paste into a notes app or message to someone</div>
+          <div class="ac-item"><span class="ac-check">✓</span> Empty state: "Generate a week plan first and your shopping list will appear here."</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ─── 14. FEEDBACK LOOP ─── -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-number">14</span>
+    <span class="section-title">Feedback Loop — Mark as Cooked & Family Verdict</span>
+  </div>
+  <div class="callout callout-warn">
+    <span class="callout-icon">⚠</span>
+    <span>These are two separate moments, deliberately split. "Mark as cooked" = she finished cooking (family hasn't eaten). "Family verdict" = how dinner actually landed (different moment, different signal). Never collapse them into one action.</span>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="label">Mark as cooked</div>
+      <p style="font-size:12px; color:var(--text-secondary); line-height:1.6; margin-bottom:8px;">Accessible from: recipe detail page (primary), planner meal card (secondary). No feedback collected at this point — just a cooking completion signal.</p>
+      <div class="interaction">
+        <div class="interaction-trigger">Trigger: "Done cooking" tapped</div>
+        <div class="interaction-body">Meal marked as cooked in planner. Warm confirmation shown. No prompt for feedback here. Navigate back to Home.</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="label">Family verdict</div>
+      <p style="font-size:12px; color:var(--text-secondary); line-height:1.6; margin-bottom:8px;">Shown in-app the next time she opens the app after a meal was cooked but not rated. Appears as a gentle in-context card on Home — not a modal, not a notification.</p>
+      <div class="interaction">
+        <div class="interaction-trigger">Trigger: Opens app, meal cooked but unrated</div>
+        <div class="interaction-body">
+          Card shows: "How did [Meal Name] land last night?"<br><br>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">
+            <div style="padding:5px 10px; border-radius:20px; font-size:11px; background:var(--bg-success); color:var(--text-success); font-weight:500; border:0.5px solid var(--border-success);">Everyone loved it 🙌</div>
+            <div style="padding:5px 10px; border-radius:20px; font-size:11px; background:var(--bg-secondary); color:var(--text-secondary); border:0.5px solid var(--border);">It was alright</div>
+            <div style="padding:5px 10px; border-radius:20px; font-size:11px; background:var(--bg-danger); color:var(--text-danger); border:0.5px solid var(--border-danger);">Won't make again</div>
+          </div>
+        </div>
+      </div>
+      <div class="ac-list" style="margin-top:8px;">
+        <div class="ac-item"><span class="ac-check">✓</span> Shown only once per meal — if dismissed, never shown again for that meal</div>
+        <div class="ac-item"><span class="ac-check">✓</span> Card can be dismissed without rating</div>
+        <div class="ac-item"><span class="ac-check">✓</span> Tone: casual conversation, not a survey</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── 15. EXIT CRITERIA ─── -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-number">15</span>
+    <span class="section-title">Phase 1 Exit Criteria</span>
+  </div>
+  <div class="exit-box">
+    <div class="exit-title">Phase 1 is complete when</div>
+    <div class="exit-item"><span class="exit-icon">→</span> Founder completes onboarding and generates her first plan in under 90 seconds from cold start</div>
+    <div class="exit-item"><span class="exit-icon">→</span> She cooks 4 or more meals in each of 2 consecutive weeks without significant friction</div>
+    <div class="exit-item"><span class="exit-icon">→</span> At least one meal receives "Everyone loved it" rating in week 1</div>
+    <div class="exit-item"><span class="exit-icon">→</span> She rates the planning experience 8/10 or higher</div>
+    <div class="exit-item"><span class="exit-icon">→</span> Zero moments where she feels the app is asking more than it's giving</div>
+  </div>
+</div>
+
+</div><!-- end .body -->
+</body>
+</html>

@@ -1,0 +1,56 @@
+/* Ops console — enterprise theme overrides scoped to /ops via .ops-root */
+
+.ops-root {
+  --ops-bg: #f7f8fa;
+  --ops-surface: #ffffff;
+  --ops-border: #e4e7ec;
+  --ops-border-strong: #d0d5dd;
+  --ops-fg: #101828;
+  --ops-fg-muted: #475467;
+  --ops-fg-soft: #667085;
+  --ops-accent: #1d4ed8;       /* blue-700 */
+  --ops-accent-soft: #eff4ff;
+  --ops-success: #027a48;
+  --ops-success-soft: #ecfdf3;
+  --ops-warn: #b54708;
+  --ops-warn-soft: #fffaeb;
+  --ops-danger: #b42318;
+  --ops-danger-soft: #fef3f2;
+  --ops-info: #175cd3;
+  --ops-info-soft: #eff8ff;
+  --ops-mono: var(--font-dm-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --ops-sans: var(--font-dm-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  background-color: var(--ops-bg);
+  color: var(--ops-fg);
+  font-family: var(--ops-sans);
+  font-feature-settings: "cv11", "ss01", "ss03";
+  letter-spacing: -0.005em;
+  min-height: 100vh;
+}
+
+.ops-root *::selection { background-color: #cfe0ff; color: #0a1733; }
+
+.ops-card {
+  background: var(--ops-surface);
+  border: 1px solid var(--ops-border);
+  border-radius: 8px;
+}
+
+.ops-divider { border-top: 1px solid var(--ops-border); }
+
+.ops-mono { font-family: var(--ops-mono); font-feature-settings: "ss01"; }
+
+.ops-link { color: var(--ops-accent); }
+.ops-link:hover { text-decoration: underline; }
+
+.ops-kbd {
+  font-family: var(--ops-mono);
+  font-size: 11px;
+  background: #f2f4f7;
+  border: 1px solid var(--ops-border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--ops-fg-muted);
+}
