@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rasa — AI Plan Engine: Inputs & Logic</title>
+<style>
+  :root {
+    --color-bg: #ffffff;
+    --color-bg-secondary: #f7f7f6;
+    --color-bg-danger: #fef2f2;
+    --color-bg-warning: #fffbeb;
+    --color-bg-success: #f0fdf4;
+    --color-bg-info: #eff6ff;
+    --color-text-primary: #111110;
+    --color-text-secondary: #57534e;
+    --color-text-tertiary: #a8a29e;
+    --color-text-danger: #b91c1c;
+    --color-text-warning: #92400e;
+    --color-text-success: #166534;
+    --color-text-info: #1e40af;
+    --color-border: #e7e5e4;
+    --color-border-danger: #fca5a5;
+    --color-border-warning: #fcd34d;
+    --color-border-success: #86efac;
+    --color-border-info: #93c5fd;
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font); background: var(--color-bg); color: var(--color-text-primary); padding: 2rem; max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+  .doc-meta { font-size: 12px; color: var(--color-text-tertiary); margin-bottom: 2rem; }
+  .section { margin-bottom: 2rem; }
+  .section-label { font-size: 10px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--color-text-tertiary); margin-bottom: .75rem; }
+  .card { background: var(--color-bg); border: 0.5px solid var(--color-border); border-radius: var(--radius-lg); padding: 1rem 1.25rem; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .input-card { border-radius: var(--radius-md); padding: .75rem; border: 0.5px solid var(--color-border); }
+  .input-title { font-size: 12px; font-weight: 600; color: var(--color-text-primary); margin-bottom: 3px; }
+  .input-sub { font-size: 11px; color: var(--color-text-secondary); line-height: 1.5; }
+  .input-example { font-size: 10px; color: var(--color-text-tertiary); font-style: italic; margin-top: 4px; line-height: 1.4; }
+  .priority-badge { display: inline-block; font-size: 10px; font-weight: 500; padding: 2px 7px; border-radius: 10px; margin-top: 6px; }
+  .badge-critical { background: var(--color-bg-danger); color: var(--color-text-danger); border: 0.5px solid var(--color-border-danger); }
+  .badge-high { background: var(--color-bg-warning); color: var(--color-text-warning); border: 0.5px solid var(--color-border-warning); }
+  .badge-med { background: var(--color-bg-info); color: var(--color-text-info); border: 0.5px solid var(--color-border-info); }
+  .badge-low { background: var(--color-bg-secondary); color: var(--color-text-tertiary); border: 0.5px solid var(--color-border); }
+  .badge-p2 { background: #f3e8ff; color: #6b21a8; border: 0.5px solid #d8b4fe; }
+  .badge-new { background: #dcfce7; color: #166534; border: 0.5px solid #86efac; font-weight: 700; }
+  .divider { height: 0.5px; background: var(--color-border); margin: .625rem 0; }
+  .step-row { display: flex; gap: 10px; align-items: flex-start; padding: .625rem 0; border-bottom: 0.5px solid var(--color-border); }
+  .step-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .step-row:first-child { padding-top: 0; }
+  .step-num { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; flex-shrink: 0; margin-top: 1px; }
+  .step-body { flex: 1; }
+  .step-title { font-size: 12px; font-weight: 600; color: var(--color-text-primary); }
+  .step-detail { font-size: 11px; color: var(--color-text-secondary); line-height: 1.5; margin-top: 3px; }
+  .step-example { font-size: 10px; color: var(--color-text-tertiary); font-style: italic; margin-top: 3px; }
+  .arrow-down { width: 2px; height: 18px; background: var(--color-border); margin: 6px auto; }
+  .engine-box { background: var(--color-bg-secondary); border: 0.5px solid var(--color-border); border-radius: var(--radius-md); padding: 1rem; text-align: center; margin-top: 4px; }
+  .engine-title { font-size: 13px; font-weight: 600; color: var(--color-text-primary); margin-bottom: 4px; }
+  .engine-logic { font-size: 11px; color: var(--color-text-secondary); line-height: 1.6; margin-bottom: 8px; }
+  .output-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  .output-pill { font-size: 11px; padding: 4px 12px; border-radius: 20px; background: var(--color-bg-success); color: var(--color-text-success); font-weight: 500; border: 0.5px solid var(--color-border-success); }
+  .verdict-row { display: flex; gap: 6px; align-items: flex-start; font-size: 11px; line-height: 1.5; padding: 3px 0; }
+  .v-yes { color: var(--color-text-success); font-weight: 600; }
+  .v-no { color: var(--color-text-danger); font-weight: 600; }
+  .tag { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; display: inline-block; }
+  .tag-cut { background: var(--color-bg-danger); color: var(--color-text-danger); }
+  .tag-keep { background: var(--color-bg-success); color: var(--color-text-success); }
+  .tag-change { background: var(--color-bg-warning); color: var(--color-text-warning); }
+  .group-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--color-text-tertiary); padding: .5rem 0 .25rem; border-top: 0.5px solid var(--color-border); margin-top: .25rem; }
+  .group-label:first-child { border-top: none; margin-top: 0; padding-top: 0; }
+  .new-pill { display: inline-block; font-size: 9px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 1px 5px; border-radius: 4px; background: #dcfce7; color: #166534; border: 0.5px solid #86efac; margin-left: 5px; vertical-align: middle; }
+  .weekly-badge { display: inline-block; font-size: 9px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 1px 5px; border-radius: 4px; background: var(--color-bg-info); color: var(--color-text-info); border: 0.5px solid var(--color-border-info); margin-left: 5px; vertical-align: middle; }
+</style>
+</head>
+<body>
+
+<h1>Rasa — AI Plan Engine: Inputs & Generation Logic</h1>
+<p class="doc-meta">PM reference document · Phase 1 · Updated after full product brainstorm session · For UX and ENG</p>
+
+<!-- ─── TONE OF VOICE ─── -->
+<div class="section">
+  <div class="section-label">Tone of voice — applies to every word in the app</div>
+  <div class="card" style="border-color: var(--color-border-info);">
+    <p style="font-size: 12px; color: var(--color-text-secondary); line-height: 1.7; margin-bottom: 14px;">Every message, label, prompt, empty state, error, confirmation, and tip in Rasa should sound like a <strong style="color: var(--color-text-primary);">trusted friend who happens to know a lot about cooking</strong> — warm, direct, occasionally funny, never clinical. Not a corporate app. Not a recipe database. A person in your corner.</p>
+    <div class="grid-2" style="margin-bottom: 14px;">
+      <div>
+        <div style="font-size: 11px; font-weight: 700; color: var(--color-text-danger); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .05em;">Never write like this</div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div style="font-size: 11px; background: var(--color-bg-danger); border-radius: var(--radius-sm); padding: 6px 10px; color: var(--color-text-danger);">"Please select your dietary restrictions from the options below."</div>
+          <div style="font-size: 11px; background: var(--color-bg-danger); border-radius: var(--radius-sm); padding: 6px 10px; color: var(--color-text-danger);">"Error: Inventory update failed. Please try again."</div>
+          <div style="font-size: 11px; background: var(--color-bg-danger); border-radius: var(--radius-sm); padding: 6px 10px; color: var(--color-text-danger);">"Meal plan generated successfully. 7 meals added."</div>
+          <div style="font-size: 11px; background: var(--color-bg-danger); border-radius: var(--radius-sm); padding: 6px 10px; color: var(--color-text-danger);">"No recipes found. Add recipes to your recipe bank to get started."</div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size: 11px; font-weight: 700; color: var(--color-text-success); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .05em;">Write like this instead</div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div style="font-size: 11px; background: var(--color-bg-success); border-radius: var(--radius-sm); padding: 6px 10px; color: var(--color-text-success);">"Anything we should never put on the menu? Allergies, dietary rules, ingredients you'd rather forget exist?"</div>
+          <div style="font-size: 11px; background: var(--color-bg-success); border-radius: var(--radius-sm); padding: 6px 10px; color: var(--color-text-success);">"Hmm, something went wrong saving that. Give it one more try?"</div>
+          <div style="font-size: 11px; background: var(--color-bg-success); border-radius: var(--radius-sm); padding: 6px 10px; color: var(--color-text-success);">"Your week is sorted. 7 dinners, zero decision fatigue."</div>
+          <div style="font-size: 11px; background: var(--color-bg-success); border-radius: var(--radius-sm); padding: 6px 10px; color: var(--color-text-success);">"Your recipe bank is empty for now — it fills up the moment you generate your first plan."</div>
+        </div>
+      </div>
+    </div>
+    <div style="background: var(--color-bg-secondary); border-radius: var(--radius-md); padding: 12px 14px;">
+      <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--color-text-tertiary); margin-bottom: 8px;">Rules</div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px 20px;">
+        <div style="font-size: 11px; color: var(--color-text-secondary); line-height: 1.7; display: flex; gap: 6px;"><span style="color: var(--color-text-success); font-weight: 700;">✓</span> Use contractions. "You're" not "You are."</div>
+        <div style="font-size: 11px; color: var(--color-text-secondary); line-height: 1.7; display: flex; gap: 6px;"><span style="color: var(--color-text-success); font-weight: 700;">✓</span> Humour welcome — when it fits naturally. Never forced.</div>
+        <div style="font-size: 11px; color: var(--color-text-secondary); line-height: 1.7; display: flex; gap: 6px;"><span style="color: var(--color-text-success); font-weight: 700;">✓</span> Celebrate small wins. Cooking is hard work — acknowledge it.</div>
+        <div style="font-size: 11px; color: var(--color-text-secondary); line-height: 1.7; display: flex; gap: 6px;"><span style="color: var(--color-text-success); font-weight: 700;">✓</span> Short sentences. One idea at a time.</div>
+        <div style="font-size: 11px; color: var(--color-text-secondary); line-height: 1.7; display: flex; gap: 6px;"><span style="color: var(--color-text-danger); font-weight: 700;">✕</span> No jargon. "Pantry" not "inventory." "Meals" not "meal entities."</div>
+        <div style="font-size: 11px; color: var(--color-text-secondary); line-height: 1.7; display: flex; gap: 6px;"><span style="color: var(--color-text-danger); font-weight: 700;">✕</span> No guilt. Never imply she didn't cook enough or plan well enough.</div>
+        <div style="font-size: 11px; color: var(--color-text-secondary); line-height: 1.7; display: flex; gap: 6px;"><span style="color: var(--color-text-danger); font-weight: 700;">✕</span> No passive voice. Active and direct always.</div>
+        <div style="font-size: 11px; color: var(--color-text-secondary); line-height: 1.7; display: flex; gap: 6px;"><span style="color: var(--color-text-danger); font-weight: 700;">✕</span> Never write "successfully." If it worked, just say what happened.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── SECTION 1: INPUT HIERARCHY ─── -->
+<div class="section">
+  <div class="section-label">What drives the plan — all inputs and their priority</div>
+  <div class="card">
+
+    <div class="group-label">Hard constraints — checked first, non-negotiable</div>
+    <div class="grid-3" style="margin-bottom: 10px;">
+      <div class="input-card" style="border-color: var(--color-border-danger);">
+        <div class="input-title">Dietary rules &amp; allergies</div>
+        <div class="input-sub">Vegetarian, halal, gluten-free, nut allergy, shellfish, etc. These are hard filters — a plan violating these is unusable or unsafe.</div>
+        <div class="input-example">Never suggest meat to a vegetarian. Never suggest nuts to an allergy household. No second chances.</div>
+        <span class="priority-badge badge-critical">Critical — set at onboarding</span>
+      </div>
+      <div class="input-card" style="border-color: var(--color-border-danger);">
+        <div class="input-title">Who are you cooking for?</div>
+        <div class="input-sub">Family composition shapes the entire recipe set. Young kids = mild spice, familiar proteins, no unusual textures. Just adults = more adventurous.</div>
+        <div class="input-example">"Me and partner" vs "family with a 6-year-old" produce completely different plans from the same pantry.</div>
+        <span class="priority-badge badge-critical">Critical — set at onboarding</span>
+      </div>
+      <div class="input-card" style="border-color: var(--color-border-danger);">
+        <div class="input-title">Ingredients never to include</div>
+        <div class="input-sub">Not allergies — just things the household will never eat. Cilantro, mushrooms, fish, liver, blue cheese. Household-specific hard stops.</div>
+        <div class="input-example">"Anything you'd never want to see on the menu?" Free text, parsed by AI.</div>
+        <span class="priority-badge badge-critical">Critical — set at onboarding</span>
+      </div>
+    </div>
+
+    <div class="group-label">Weekly session inputs — provided fresh each plan generation</div>
+    <div class="grid-2" style="margin-bottom: 10px;">
+      <div class="input-card" style="border-color: var(--color-border-warning);">
+        <div class="input-title">Pantry snapshot <span class="weekly-badge">Weekly</span></div>
+        <div class="input-sub">What she has right now, typed in free text. No structure or units required. AI treats unlabelled items as "available, unknown quantity" — plans around them but doesn't rely on precise measurements from them. Expiring items get surfaced to Monday/Tuesday meals.</div>
+        <div class="input-example">"chicken thighs, pasta, canned tomatoes, garlic, spinach, eggs, leftover rice"</div>
+        <span class="priority-badge badge-high">Highest weekly priority — plan around this first</span>
+      </div>
+      <div class="input-card" style="border-color: var(--color-border-warning);">
+        <div class="input-title">This week's context <span class="weekly-badge">Weekly</span> <span class="new-pill">New</span></div>
+        <div class="input-sub">Conversational free-text prompt alongside pantry input, every week. "Tell me what your week looks like." AI extracts: busy nights, occasion cooking, energy mood, any constraints for the week.</div>
+        <div class="input-example">"Busy Monday and Thursday, parents visiting Saturday, trying to eat lighter this week."</div>
+        <span class="priority-badge badge-high">High — shapes day-by-day complexity and cook time</span>
+      </div>
+    </div>
+
+    <div class="group-label">Taste &amp; lifestyle profile — set at onboarding, editable anytime</div>
+    <div class="grid-3" style="margin-bottom: 10px;">
+      <div class="input-card">
+        <div class="input-title">Primary + secondary cuisine <span class="new-pill">Updated</span></div>
+        <div class="input-sub">Not a flat list. One primary cuisine she eats 60–70% of the time. One or two secondary cuisines woven in. AI plans accordingly — primary anchors the week, secondary adds variety. Fusion suggestions (e.g. Indianized pot pie) use secondary cuisine flavours in primary style.</div>
+        <div class="input-example">Primary: Indian · Secondary: Italian, Mediterranean</div>
+        <span class="priority-badge badge-high">High — set once, shapes every plan</span>
+      </div>
+      <div class="input-card">
+        <div class="input-title">Weeknight time budget</div>
+        <div class="input-sub">How long she cooks on weeknights. Sets the complexity ceiling Mon–Fri. Weekend plans can go longer.</div>
+        <div class="input-example">Under 30 min / 30–45 min / An hour is fine</div>
+        <span class="priority-badge badge-high">High — set once, shapes every plan</span>
+      </div>
+      <div class="input-card">
+        <div class="input-title">Cooking skill level <span class="new-pill">New</span></div>
+        <div class="input-sub">How comfortable she is in the kitchen. Cuisine preference says nothing about skill — "I love Indian food" could mean she grew up cooking it or loves eating it. Complexity ceiling must be set separately.</div>
+        <div class="input-example">Still finding my feet / Pretty confident / I enjoy the challenge</div>
+        <span class="priority-badge badge-high">High — prevents suggesting a 25-step biryani to a beginner</span>
+      </div>
+    </div>
+
+    <div class="grid-3" style="margin-bottom: 10px;">
+      <div class="input-card">
+        <div class="input-title">User goals <span class="new-pill">New</span></div>
+        <div class="input-sub">What matters most to her beyond taste. Budget-conscious → AI avoids expensive proteins, favours lentils/eggs/seasonal veg. Explorer → novel recipes each week. Comfort-first → rotation of trusted meals with occasional new.</div>
+        <div class="input-example">Affordability / Try new things each week / Rotate meals I love</div>
+        <span class="priority-badge badge-med">Medium — shapes character of every plan</span>
+      </div>
+      <div class="input-card">
+        <div class="input-title">Recipe bank</div>
+        <div class="input-sub">Grows over time as a byproduct of planning — not a prerequisite. Week 1: mostly AI-generated. Week 8: mix of AI and her proven meals. "Make again" rated meals get rotated back in every 3–4 weeks automatically.</div>
+        <div class="input-example">Starts empty. Grows by 5–7 recipes every week the plan runs.</div>
+        <span class="priority-badge badge-med">Medium — compounds in value over time</span>
+      </div>
+      <div class="input-card">
+        <div class="input-title">Feedback signals <span class="new-pill">New</span> <span class="priority-badge badge-p2" style="margin-left:0;">Phase 2</span></div>
+        <div class="input-sub">Captured from week 1 but used in plan generation from Phase 2. "Everyone loved it" → weight up. "Won't make again" → retired. Skipped meals → deprioritised. Consistent Friday skips → stop planning Fridays.</div>
+        <div class="input-example">Passive signals: skipped, swapped, never cooked. Active: 3-tap family verdict after dinner.</div>
+        <span class="priority-badge badge-p2">Phase 2 — collected now, used in planning later</span>
+      </div>
+    </div>
+
+    <div class="group-label">Internal generation rules — invisible to user</div>
+    <div class="grid-2" style="margin-bottom: 10px;">
+      <div class="input-card">
+        <div class="input-title">Variety engine</div>
+        <div class="input-sub">No back-to-back same protein. Cuisine mix across the week. Easy–hard rhythm (lighter weekdays, more effort weekends). One-pan and minimal-dishes variants preferred on weeknights to reduce cleanup.</div>
+        <span class="priority-badge badge-med">Invisible when it works. Noticeable when it fails (chicken 4 nights in a row).</span>
+      </div>
+      <div class="input-card">
+        <div class="input-title">Reasoning surface</div>
+        <div class="input-sub">AI explains why each meal was chosen, shown inline on the plan. Builds trust — she feels heard, not processed.</div>
+        <div class="input-example">"Monday uses your spinach before it expires." · "Quick 25-min meal for your busy Thursday." · "Weekend treat — a bit more effort, worth it."</div>
+        <span class="priority-badge badge-low">Builds trust. "Delight, not magic."</span>
+      </div>
+    </div>
+
+    <!-- Engine box -->
+    <div class="arrow-down"></div>
+    <div class="engine-box">
+      <div class="engine-title">AI Plan Generator — generation order</div>
+      <div class="engine-logic">
+        1. Apply hard constraints (allergies, family composition, banned ingredients)<br>
+        2. Prioritise pantry items with expiry → surface to Mon/Tue<br>
+        3. Parse weekly context → map busy nights, occasions, lighter days<br>
+        4. Match primary cuisine (60–70% of meals) + weave in secondary<br>
+        5. Apply skill ceiling and weeknight time budget per day<br>
+        6. Pull from recipe bank if available and relevant<br>
+        7. Apply variety engine (protein rotation, cuisine mix, effort rhythm)<br>
+        8. <strong>Generate complete-meal recipes</strong> — each AI-generated recipe includes protein + carb + vegetable with steps sequenced to coordinate timing. If using a user's single-dish recipe from the bank, include its "Serve with" accompaniment in the plan entry and shopping list.<br>
+        9. Generate reasoning per meal<br>
+        10. Auto-save generated recipes to recipe bank
+      </div>
+      <div class="output-row">
+        <div class="output-pill">Week plan with per-meal reasoning</div>
+        <div class="output-pill">Recipes auto-saved to bank</div>
+        <div class="output-pill">Shopping gap list (incl. accompaniments)</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ─── RECIPE COMPLETENESS MODEL ─── -->
+<div class="section">
+  <div class="section-label">Recipe completeness model — AI-generated vs user-added</div>
+  <div class="card">
+    <div class="grid-2">
+      <div>
+        <div style="font-size: 12px; font-weight: 600; color: var(--color-text-success); margin-bottom: 8px;">AI-generated recipes</div>
+        <div style="font-size: 11px; color: var(--color-text-secondary); line-height: 1.6;">Always complete meals — protein + carb + vegetable, all components included in one recipe with steps sequenced to coordinate timing. "Dal Tadka with Basmati Rice and Cucumber Raita" not just "Dal Tadka." Shopping list is automatically complete.</div>
+      </div>
+      <div>
+        <div style="font-size: 12px; font-weight: 600; color: var(--color-text-warning); margin-bottom: 8px;">User-imported or manually added recipes</div>
+        <div style="font-size: 11px; color: var(--color-text-secondary); line-height: 1.6;">Likely single-dish. AI detects completeness at save time and suggests a "Serve with" accompaniment — editable, dismissable. When planned, the accompaniment ingredients are added to the shopping list. Planner shows "[Recipe] + [Accompaniment]". Cook mode shows a brief "Also make: X" note.</div>
+      </div>
+    </div>
+    <div style="margin-top: 12px; padding: 10px 12px; background: var(--color-bg-secondary); border-radius: var(--radius-md); font-size: 11px; color: var(--color-text-secondary); line-height: 1.6;">
+      <strong style="color: var(--color-text-primary);">Multi-recipe meal coordination (Phase 2):</strong> Proper meal bundles with multiple recipe objects, parallel cook mode with coordinated timings, and reusable component recipes (e.g. "basmati rice" as a standalone recipe used across many meals). Not built in Phase 1 — the "Serve with" model covers the need adequately for now.
+    </div>
+  </div>
+</div>
+
+<!-- ─── SECTION 2: ONBOARDING FLOW ─── -->
+<div class="section">
+  <div class="section-label">First-run onboarding — 3 questions, then immediate value</div>
+  <div class="card">
+
+    <p style="font-size:12px; color: var(--color-text-secondary); line-height: 1.6; margin-bottom: 14px; padding: 10px 12px; background: var(--color-bg-info); border-radius: var(--radius-md); border: 0.5px solid var(--color-border-info);">
+      <strong style="color: var(--color-text-info);">Core principle:</strong> Never make her feel like she's filling out a form before she gets value. We ask 3 questions — the minimum needed to not fail — then generate the first plan immediately. Everything else surfaces gradually through use or an optional profile screen. Value first, depth optional.
+    </p>
+
+    <div style="display: flex; flex-direction: column; gap: 0;">
+
+      <div class="step-row">
+        <div class="step-num" style="background: var(--color-bg-danger); color: var(--color-text-danger);">1</div>
+        <div class="step-body">
+          <div class="step-title">Any dietary rules or allergies we must know about?</div>
+          <div class="step-detail">Free text. This is the one question that cannot be skipped — a plan that violates a dietary rule or allergy is worse than no plan. Collected first because failure here is catastrophic, not just suboptimal.</div>
+          <div class="step-example">"Vegetarian" · "Halal" · "My daughter is allergic to nuts" · "We don't eat pork"</div>
+        </div>
+      </div>
+
+      <div class="step-row">
+        <div class="step-num" style="background: var(--color-bg-danger); color: var(--color-text-danger);">2</div>
+        <div class="step-body">
+          <div class="step-title">Who are you cooking for?</div>
+          <div class="step-detail">Single select. Determines spice tolerance, portion sizing, recipe complexity, and texture constraints across every plan. A plan built for adults that lands on a 6-year-old's plate is the wrong plan — regardless of cuisine.</div>
+          <div class="step-example">Just me · Me and a partner · Family with young kids (under 10) · Family with teens</div>
+        </div>
+      </div>
+
+      <div class="step-row">
+        <div class="step-num" style="background: var(--color-bg-danger); color: var(--color-text-danger);">3</div>
+        <div class="step-body">
+          <div class="step-title">What's your primary cuisine — and what else do you enjoy?</div>
+          <div class="step-detail">One primary (the cuisine she eats 60–70% of the time) + optional secondary taps. Fast — 10 seconds. Not a flat multi-select: hierarchy matters to the plan generator. Primary anchors the week; secondary weaves in for variety.</div>
+          <div class="step-example">Primary: Indian · Secondary (optional taps): Italian, Mediterranean</div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="step-row" style="border-bottom: none;">
+        <div class="step-num" style="background: var(--color-bg-success); color: var(--color-text-success);">→</div>
+        <div class="step-body">
+          <div class="step-title" style="color: var(--color-text-success);">Immediately: pantry snapshot + week context → first plan generated</div>
+          <div class="step-detail">After question 3, she lands on the pantry input screen. Types what she has. Optionally types a sentence about her week. Plan appears in under 15 seconds. Recipe bank starts with 5–7 entries. The wow moment arrives before she's even thought about exploring the rest of the app.</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Progressive disclosure -->
+    <div style="margin-top: 16px; padding: 12px; background: var(--color-bg-secondary); border-radius: var(--radius-md); border: 0.5px solid var(--color-border);">
+      <div style="font-size: 11px; font-weight: 700; color: var(--color-text-tertiary); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px;">Remaining preferences — surfaced progressively, never upfront</div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <div>
+          <div style="font-size: 11px; font-weight: 600; color: var(--color-text-secondary); margin-bottom: 4px;">Surfaces via Profile screen (she explores when ready)</div>
+          <div style="font-size: 11px; color: var(--color-text-tertiary); line-height: 1.7;">
+            · Cooking skill level<br>
+            · Weeknight time budget<br>
+            · Meal goals (affordability / explorer / comfort)<br>
+            · Banned ingredients ("never on the menu")<br>
+            · Secondary cuisine refinement
+          </div>
+        </div>
+        <div>
+          <div style="font-size: 11px; font-weight: 600; color: var(--color-text-secondary); margin-bottom: 4px;">Inferred automatically over time (no asking)</div>
+          <div style="font-size: 11px; color: var(--color-text-tertiary); line-height: 1.7;">
+            · Which nights she actually cooks<br>
+            · Complexity ceiling (from swaps and skips)<br>
+            · Pantry anchors (items always present)<br>
+            · Cooking rhythm (4 nights? 5? Never Fridays?)<br>
+            · Proven winners vs. retired meals
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ─── SECTION 3: WEEKLY PLAN GENERATION TRIGGER ─── -->
+<div class="section">
+  <div class="section-label">Weekly plan generation — what happens every Sunday (or whenever she re-plans)</div>
+  <div class="card">
+    <div style="display: flex; flex-direction: column; gap: 0;">
+      <div class="step-row">
+        <div class="step-num" style="background: var(--color-bg-warning); color: var(--color-text-warning);">1</div>
+        <div class="step-body">
+          <div class="step-title">Pantry snapshot — free text, no units required</div>
+          <div class="step-detail">She types what she has. Unstructured. If units/quantities are missing, AI treats the item as "available, unknown quantity." Planning still proceeds — the AI avoids recipes that depend on precise measurements of unlabelled items but uses the ingredient freely otherwise.</div>
+          <div class="step-example">"spinach, 2 chicken breasts, eggs, pasta, garlic, half a block of paneer, canned chickpeas"</div>
+        </div>
+      </div>
+      <div class="step-row" style="border-bottom: none;">
+        <div class="step-num" style="background: var(--color-bg-warning); color: var(--color-text-warning);">2</div>
+        <div class="step-body">
+          <div class="step-title">This week's context — conversational free text</div>
+          <div class="step-detail">One open field below the pantry input. "Tell me what your week looks like." Not required but strongly encouraged. AI extracts busy nights, occasion meals, energy levels, and any one-off constraints. Her profile handles everything else automatically.</div>
+          <div class="step-example">"Normal week, but Thursday I'll be home late. Want something lighter overall — been eating heavy."</div>
+        </div>
+      </div>
+      <div class="step-row" style="border-bottom: none;">
+        <div class="step-num" style="background: var(--color-bg-warning); color: var(--color-text-warning);">3</div>
+        <div class="step-body">
+          <div class="step-title">Use soon — optional, highest AI priority</div>
+          <div class="step-detail">A third lightweight field. "Anything that needs using up soon?" Free text. AI treats anything listed here as the highest priority in the plan — slots these ingredients into Monday and Tuesday meals before planning anything else. Reasoning note on the plan should reference it explicitly: "Monday uses your sausages before they go off."</div>
+          <div class="step-example">"Wilting spinach, some sausages from last week, half a block of tofu."</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── SECTION 4: SHOPPING LOOP ─── -->
+<div class="section">
+  <div class="section-label">Shopping list — what it is and what it isn't</div>
+  <div class="card">
+    <p style="font-size:12px; color: var(--color-text-secondary); margin-bottom: 12px; line-height: 1.6;">The real question isn't "how do we sync the loop?" — it's "do we need a persistent fridge database at all?"</p>
+    <div class="grid-2">
+      <div>
+        <div style="font-size: 12px; font-weight: 600; color: var(--color-text-danger); margin-bottom: 8px;">Why persistent inventory is a trap</div>
+        <div class="verdict-row"><span class="v-no">✕</span> Every item she uses requires a manual update</div>
+        <div class="verdict-row"><span class="v-no">✕</span> Every item she buys but doesn't check off → inventory wrong</div>
+        <div class="verdict-row"><span class="v-no">✕</span> Quantities are ambiguous ("bought chicken" = 4 portions or 1 pack?)</div>
+        <div class="verdict-row"><span class="v-no">✕</span> Stale data = bad plan suggestions. Requires constant maintenance for any accuracy.</div>
+      </div>
+      <div>
+        <div style="font-size: 12px; font-weight: 600; color: var(--color-text-success); margin-bottom: 8px;">The simpler model that works better</div>
+        <div class="verdict-row"><span class="v-yes">✓</span> Pantry snapshot at plan generation = always fresh, zero maintenance</div>
+        <div class="verdict-row"><span class="v-yes">✓</span> Shopping list = plan ingredients minus pantry snapshot. Always accurate.</div>
+        <div class="verdict-row"><span class="v-yes">✓</span> Checking off items in-store = for her use only. No back-sync required.</div>
+        <div class="verdict-row"><span class="v-yes">✓</span> Mid-week regeneration uses current pantry — she types what she has again. Fresh, not stale.</div>
+      </div>
+    </div>
+    <div class="divider" style="margin-top: 12px;"></div>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; align-items: center;">
+      <span style="font-size: 11px; color: var(--color-text-secondary);">Verdict:</span>
+      <span class="tag tag-change">Fridge page → "This week's pantry" · session input only · becomes plan generation trigger</span>
+      <span class="tag tag-keep">Shopping list → one-way output, no sync</span>
+      <span class="tag tag-cut">Persistent inventory DB → deleted · no real data · not rebuilt</span>
+    </div>
+  </div>
+</div>
+
+<!-- ─── SECTION 5: WHAT THE APP NEVER DOES ─── -->
+<div class="section">
+  <div class="section-label">Explicit non-goals — what this engine does not do</div>
+  <div class="card">
+    <div class="grid-2">
+      <div>
+        <div class="verdict-row"><span class="v-no">✕</span> Track macros or calories — healthy by default, no numbers shown</div>
+        <div class="verdict-row"><span class="v-no">✕</span> Require units/quantities on pantry items to generate a plan</div>
+        <div class="verdict-row"><span class="v-no">✕</span> Maintain a persistent inventory that the user must keep up to date</div>
+        <div class="verdict-row"><span class="v-no">✕</span> Require a recipe bank before generating the first plan</div>
+      </div>
+      <div>
+        <div class="verdict-row"><span class="v-no">✕</span> Regenerate the full week when she swaps one meal</div>
+        <div class="verdict-row"><span class="v-no">✕</span> Ask the same onboarding questions again after day 1</div>
+        <div class="verdict-row"><span class="v-no">✕</span> Silently change the plan without her knowing (mid-week adjustment = Phase 2, with prompt)</div>
+        <div class="verdict-row"><span class="v-no">✕</span> Generate 7 meals if her lifestyle suggests she cooks 4–5 nights</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
