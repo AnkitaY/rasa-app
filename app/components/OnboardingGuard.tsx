@@ -23,11 +23,12 @@ export default function OnboardingGuard({ children }: { children: React.ReactNod
   const router = useRouter()
   const [ready, setReady] = useState(false)
 
-  // Skip guard entirely on onboarding pages
+  // Skip guard entirely on onboarding pages and the internal ops console
   const isOnboarding = pathname.startsWith('/onboarding')
+  const isOps = pathname.startsWith('/ops')
 
   useEffect(() => {
-    if (isOnboarding) {
+    if (isOnboarding || isOps) {
       setReady(true)
       return
     }
@@ -47,9 +48,9 @@ export default function OnboardingGuard({ children }: { children: React.ReactNod
         // On network failure, allow through — don't block the whole app
         setReady(true)
       })
-  }, [isOnboarding, router])
+  }, [isOnboarding, isOps, router])
 
-  if (isOnboarding) return <>{children}</>
+  if (isOnboarding || isOps) return <>{children}</>
   if (!ready) return null
 
   return <>{children}</>

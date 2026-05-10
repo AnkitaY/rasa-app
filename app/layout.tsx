@@ -4,6 +4,7 @@ import { Playfair_Display, Nunito, DM_Mono, DM_Sans } from 'next/font/google'
 import './globals.css'
 import BottomNav from './components/BottomNav'
 import OnboardingGuard from './components/OnboardingGuard'
+import AppShell from './components/AppShell'
 
 const geistSans = localFont({
   src: './fonts/GeistVF.woff',
@@ -59,10 +60,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} ${nunito.variable} ${dmMono.variable} ${dmSans.variable} antialiased font-display`}
       >
         <OnboardingGuard>
-          {/* pb-20 clears the fixed bottom nav + safe area */}
-          <div className="pb-20">
+          {/* AppShell adds pb-20 clearance for the bottom nav, and steps aside on /ops. */}
+          <AppShell>
             {children}
-          </div>
+          </AppShell>
           <BottomNav />
         </OnboardingGuard>
       </body>
