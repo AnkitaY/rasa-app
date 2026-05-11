@@ -57,6 +57,87 @@
 - [x] Write integration tests for /api/preferences/save | Priority: MED | From: founder — done: 2026-05-08 | agent: test-engineer
 - [x] Set up Playwright E2E tests (54 tests across onboarding, home, planner, recipes flows) | Priority: MED | From: founder — done: 2026-05-08 | agent: test-engineer
 
+## Phase 1 bugs — live testing (pm-agent 2026-05-09)
+
+- [x] BUG-008: Q1 onboarding dietary restrictions can be skipped — no validation | Priority: HIGH | From: pm-agent 2026-05-09
+  - Flow: Onboarding Q1 → tapped Next with nothing selected → proceeded to Q2 unblocked
+  - Expected (PRD): Q1 cannot be skipped; "None" chip must be explicitly selected if user has no restrictions
+  - Actual: empty selection silently passes, preferences saved with no dietary data
+  - Fix: add client-side guard — require at least one chip selected (including "None") before Next is enabled
+  - Done: 2026-05-10 | agent: frontend-engineer
+
+- [ ] BUG-009: Plan generation consistently exceeds PRD <15s target — measured ~25s | Priority: HIGH | From: pm-agent 2026-05-09
+  - Flow: /planner/generate → submit pantry → wait for plan
+  - Expected (PRD): plan appears in <15s; Phase 1 exit criterion is <90s from cold start, but UX target is <15s
+  - Actual: 3 timed runs averaged ~25s
+  - Investigate: Claude Sonnet prompt size in generate-v2, streaming vs buffered response, whether shopping list generation is sequential
+  - Fix direction: stream plan tokens to UI as they arrive; defer shopping list generation to a separate async call after plan displays
+
+- [ ] BUG-010: Cook time absent from planner meal cards | Priority: MED | From: pm-agent 2026-05-09
+  - Flow: /planner — weekly meal grid
+  - Expected (PRD): each meal card shows meal name + cook time + reasoning note
+  - Actual: meal name and reasoning note visible; cook time missing from main card (cook time IS shown in swap alternatives, so the data exists)
+  - Fix: surface cook_time from the meals row in the planner card component
+
+- [ ] BUG-011: Stale reasoning note persists after meal swap | Priority: MED | From: pm-agent 2026-05-09
+  - Flow: /planner → tap Swap → select reason → pick alternative → confirm
+  - Expected: swapped meal card updates with new meal name + new reasoning note
+  - Actual: new meal name shown but reasoning note still reads the previous meal's text
+  - Fix: ensure swap endpoint returns updated meal row including `reasoning` field, and planner state updates that field on swap
+
+- [ ] BUG-012: Week strip day tap opens planner overview, not the specific meal | Priority: LOW | From: pm-agent 2026-05-09
+  - Flow: Home screen week strip → tap a day chip
+  - Expected (PRD): tapping a day should surface that day's meal quickly
+  - Actual: routes to /planner top-of-page; user must scroll to find the day
+  - Fix: route to /planner#[day] anchor or scroll-to-card on mount using day param
+
+- [ ] BUG-013: Cook mode unreachable — "Let's cook" routes to recipe detail, not step-by-step carousel | Priority: CRITICAL | From: pm-agent 2026-05-09
+  - Flow: Home "Let's cook" CTA → lands on /recipes/[id] (recipe detail), NOT cook mode
+  - Expected (PRD): "Let's cook" → step-by-step cook mode carousel (Phase 0 feature preserved)
+  - Also: "Let's cook" on /recipes/[id] → routes to /planner, not cook mode
+  - Also: "Plan Tonight" button on /kitchen fails silently (no navigation, no error)
+  - Cook mode appears completely unreachable from any entry point in the current build
+  - Fix: audit routing for cook mode; verify the cook mode carousel component still exists and wire home + recipe detail CTAs correctly
+
+- [ ] BUG-014: Recipe bank shows cross-user / test data (47 recipes on fresh anon session) | Priority: HIGH | From: pm-agent 2026-05-09
+  - Flow: fresh localStorage clear → complete onboarding → navigate to /recipes
+  - Expected: empty recipe bank (no plan generated yet, no recipes imported)
+  - Actual: 47 recipes visible — these are test/seed data or other users' recipes leaking through
+  - Note: BUG-007 fixed the direct Supabase call to use API route with anon_id filter — but 47 recipes still show. Either the API route filter is not working correctly in production, or the DB contains seed rows with null user_id that are being returned
+  - Fix: check GET /api/recipes/list query — ensure it returns ONLY rows matching the current anon_id; if null-user_id seed rows exist in DB, delete or migrate them
+
+## From PRD review (pm-agent 2026-05-09)
+
+- [ ] ENG-PRD-001: Validate complete-meal AI generation quality before building on top of it | Priority: HIGH | From: pm-agent PRD review 2026-05-09
+  - The entire plan engine value prop depends on AI reliably generating protein + carb + veg with coordinated steps
+  - Task: run 20 test pantry inputs through generate-v2; score each: is the meal complete? are timing/steps coherent? is the shopping list extractable and accurate?
+  - Establish a quality floor; document failure modes; fix prompt before other plan engine work proceeds
+  - Do not build shopping list deduplication or recipe bank compounding on top of unvalidated AI output
+
+- [ ] ENG-PRD-002: Add excluded_from_plans flag to recipes table and wire to "Won't make again" | Priority: HIGH | From: pm-agent PRD review 2026-05-09
+  - Migration: add boolean column excluded_from_plans (default false) to recipes table
+  - When user rates a meal "Won't make again": set excluded_from_plans = true on the linked recipe
+  - Plan generator (generate-v2): add filter to exclude recipes where excluded_from_plans = true
+  - This is the minimum viable learning loop — blocks until this is in, plans never improve
+  - Coordinate with PM-003 before building
+
+- [ ] ENG-PRD-003: Write pantry quantity handling rules explicitly into the generate-v2 prompt | Priority: HIGH | From: pm-agent PRD review 2026-05-09
+  - Current: prompt relies on model inference for quantities; risk of multi-meal plans that assume more ingredient than user has
+  - Rule to encode (pending PM-002 spec): proteins and fresh veg = use once per plan unless quantity specified; pantry staples = assume abundant
+  - After adding rule, test with "4 chicken thighs" pantry input: verify no plan uses chicken more than once
+  - Deliver as a prompt diff against the current generate-v2 system prompt
+
+- [ ] ENG-PRD-004: Measure and assert full plan generation time end-to-end | Priority: MED | From: pm-agent PRD review 2026-05-09
+  - BUG-009 already tracks the ~25s timing issue; this task is broader
+  - Instrument the full generate-v2 pipeline: time each step (AI call, recipe parsing, shopping list generation, DB writes)
+  - Target: plan tokens stream to UI within 15s; shopping list and recipe bank saves can be async after
+  - If complete-meal model adds latency, consider streaming plan first and generating recipes asynchronously
+
+- [ ] ENG-PRD-005: Build Profile screen before full plan generation flow redesign | Priority: MED | From: pm-agent PRD review 2026-05-09
+  - Progressive disclosure model from onboarding breaks if Profile screen doesn't exist — deferred settings become permanently inaccessible
+  - "Never on the menu" and cooking skill fields especially must be editable before the new plan generation flow ships
+  - Profile screen scope: as specified in UX handoff section 11 — two blocks, no account management, auto-save or single save button
+
 ## Feature improvements
 - [x] IMP-001: generate-v2 saves last_pantry_input via update (no-op if prefs row missing) — use upsert instead | Priority: LOW | From: code audit 2026-05-07
   - File: app/api/plans/generate-v2/route.ts:384-387

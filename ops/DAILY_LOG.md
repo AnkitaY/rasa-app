@@ -18,3 +18,5 @@
 2026-05-07 backend-engineer: BUG-004/005/006/007 pushed to master (c8b7384) → Vercel deployed ✓ | https://rasa-app-woad.vercel.app/ responding 200
 2026-05-08 backend-engineer: HOTFIX production DB permissions → done | GRANT ALL on user_preferences + meals to service_role; confirmed via REST 200 + POST /api/preferences/save returning {"ok":true}; root cause was Phase 1 tables created without service_role grants
 2026-05-09 backend-engineer main IMP-001 — generate-v2 last_pantry_input now uses upsert so pantry pre-fill works even when preferences row is missing at generate time
+2026-05-09 pm-agent: Phase 1 live E2E test (9/10 flows) → done | 7 new bugs (BUG-008 to BUG-014), 6 UX issues filed; TASKS.md backlog created; SPRINT.md Ready section updated; critical: cook mode unreachable (BUG-013) + recipe bank data leak (BUG-014) need immediate fix before founder testing
+2026-05-10 frontend-engineer: BUG-008 Q1 onboarding Next button guard → done | added canProceed derived state; Next disabled until chip selected or free text entered; updated conflicting e2e test + added BUG-008 coverage; npm run build ✓ clean
