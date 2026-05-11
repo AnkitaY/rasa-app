@@ -6,6 +6,7 @@
 # Example entries:
 # 2026-05-07 debug-agent: BUG-001 meal plan safari → done | fix in branch fix/bug-001-safari
 # 2026-05-07 code-reviewer: reviewed fix/bug-001-safari → NEEDS_CHANGES | 1 issue filed in PR
+2026-05-11 backend-engineer: BUG-014 recipe bank cross-user leak → done | added anon_id+deleted_at cols to recipes; soft-deleted 47 seed rows; fixed list/import/generate/manual routes + 3 caller pages; npm run build ✓ (46/46 pages)
 2026-05-07 backend-engineer: BUG-002 shopping list anon_id guard → done | added 400 guard at top of POST /api/shopping/generate; npm run build ✓ (38/38 pages, no errors)
 2026-05-07 frontend-engineer: BUG-001 direct Supabase calls in app/page.tsx + app/recipes/[id]/page.tsx → done | created GET /api/recipes/[id] (admin client); replaced both anon-key calls with fetch(); npm run build ✓ clean
 2026-05-07 backend-engineer: BUG-003 regenerate orphans cooked meals → done | generate-v2 now updates existing week_plans row in place and deletes only uncooked meals; cooked days are preserved across re-generates; npm run build ✓ clean
@@ -20,3 +21,4 @@
 2026-05-09 backend-engineer main IMP-001 — generate-v2 last_pantry_input now uses upsert so pantry pre-fill works even when preferences row is missing at generate time
 2026-05-09 pm-agent: Phase 1 live E2E test (9/10 flows) → done | 7 new bugs (BUG-008 to BUG-014), 6 UX issues filed; TASKS.md backlog created; SPRINT.md Ready section updated; critical: cook mode unreachable (BUG-013) + recipe bank data leak (BUG-014) need immediate fix before founder testing
 2026-05-10 frontend-engineer: BUG-008 Q1 onboarding Next button guard → done | added canProceed derived state; Next disabled until chip selected or free text entered; updated conflicting e2e test + added BUG-008 coverage; npm run build ✓ clean
+2026-05-11 frontend-engineer: BUG-013 cook mode unreachable + UX-002 CTA labels → done | created /cook/[id] standalone cook mode page (Phase 1 styled, steps_v2 + legacy fallback); home "Let's cook" → /cook/[id]; home "Full plan" renamed "View full recipe" → /recipes/[id]; recipe detail "Let's cook" → /cook/[id]; removed Plan Tonight button from /kitchen (not Phase 1 specced); npm run build ✓ (46/46 pages)

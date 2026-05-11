@@ -2,151 +2,222 @@
 # Agents read this at session start and process in order
 # Format: - [ ] TASK: [description] | Priority: [HIGH/MED/LOW] | From: [source]
 
-## Phase 1 bugs
+## S02 — Build order (work top to bottom)
 
-- [x] BUG-001: Home page and recipe detail query Supabase directly, bypassing API routes — may silently fail with RLS | Priority: HIGH | From: code audit 2026-05-07
-  - Files: app/page.tsx:92-97, app/recipes/[id]/page.tsx:143-163
-  - Both use createClient() (anon key) to query the recipes table directly. CLAUDE.md hard rule: all DB queries go through admin client in API routes, never in components.
-  - Impact: if RLS blocks anonymous reads on recipes, home page hero shows no cook time / prep-ahead info and the "Let's cook →" button never appears. Recipe detail page shows "Recipe not found" for every recipe.
-  - Fix: create GET /api/recipes/[id] route (admin client) and replace both direct client calls with fetch to that route.
+---
 
-- [x] BUG-002: Shopping list API falls through to return any user's most recent plan when anon_id is missing | Priority: HIGH | From: code audit 2026-05-07
-  - File: app/api/shopping/generate/route.ts:87-91
-  - When anon_id is falsy the planQuery runs without .eq('anon_id', ...) and returns the most recently created week_plans row in the entire DB — another user's data.
-  - Reproduce: POST /api/shopping/generate with body {} — returns some user's shopping list.
-  - Fix: add a 400 guard at the top of the route if anon_id is missing, consistent with how every other route handles it.
+### STAGE 1 — Fix core loop first (bugs block everything)
+Run BUG-013, BUG-014, BUG-009 in parallel — no dependencies between them.
 
-- [x] BUG-003: Regenerating a plan orphans cooked meals — cooking progress disappears | Priority: HIGH | From: code audit 2026-05-07
-  - File: app/api/plans/generate-v2/route.ts:332-353
-  - Every generate-v2 call INSERTs a brand-new week_plans row. When user marks meals cooked on plan A, then clicks "Rethink remaining →" and generates plan B, plan B is a new row. The home page and planner pivot to plan B (latest created_at). All cooked progress from plan A is invisible.
-  - Reproduce: generate plan → mark one meal cooked → go to planner → click "Rethink remaining →" → generate again → cooked meal gone.
-  - Fix: upsert on (anon_id, week_start_date) or keep the existing plan row and only replace the uncooked meals + re-insert those meals.
+- [x] BUG-013: Cook mode unreachable — CRITICAL | Priority: CRITICAL | From: pm-agent 2026-05-09
+  - done: 2026-05-11 | agent: frontend-engineer
+  - AC: [x] "Let's cook" on home card → /cook/[id] (new standalone cook mode page)
+        [x] "Let's cook" on recipe detail → /cook/[id]
+        [x] "Plan Tonight" on /kitchen removed (not specced for Phase 1); empty state updated
+  - Also: "Full plan" CTA on home renamed "View full recipe" → /recipes/[id] (UX-002)
 
-- [x] BUG-006: Preferences save fails in production with "Hmm, couldn't save your preferences. Give it one more try?" | Priority: HIGH | From: founder 2026-05-07
-  - Flow: Onboarding — last step (cuisine selection) → save → error toast
-  - Reproduce: complete all 3 onboarding steps on fresh session → submit cuisine step → error appears
-  - Expected: preferences saved, redirected to /planner/generate
-  - Actual: 500 error toast, user stuck on onboarding
-  - Static audit shows route code is correct — likely a runtime issue (anon_id not yet set in localStorage when save fires, or Supabase admin client env var issue in production)
-  - File hint: app/onboarding/cuisine/page.tsx (save call), app/api/preferences/save/route.ts
+- [x] BUG-014: Recipe bank shows 47 cross-user recipes on fresh session | Priority: HIGH | From: pm-agent 2026-05-09
+  - done: 2026-05-11 | agent: backend-engineer
+  - AC: [x] Fresh session shows empty recipe bank (0 recipes)
+        [x] Null anon_id seed rows soft-deleted from production DB (deleted_at = now())
+  - Files: GET /api/recipes/list, supabase migration, import/generate/manual routes + callers
 
-- [x] BUG-007: Recipe bank (/recipes) queries Supabase directly — same violation as BUG-001 | Priority: HIGH | From: qa-agent 2026-05-07
-  - Flow: Recipe bank page
-  - Reproduce: navigate to /recipes — direct createClient() call fetches all recipes with no anon_id filter
-  - Expected: recipes fetched via /api/recipes/list (admin client, anon_id scoped)
-  - Actual: direct Supabase SDK call in component, bypasses API route rule, no anon_id validation
-  - File hint: app/recipes/page.tsx:27-35 — createClient().from('recipes').select('*').is('user_id', null)
-  - Fix: create GET /api/recipes/list route (admin client) and replace component call
+- [ ] BUG-009: Plan generation ~25s — stream to <15s visible | Priority: HIGH | From: pm-agent 2026-05-09
+  - AC: [ ] Plan tokens stream to UI; first meal visible under 5s
+        [ ] Shopping list generation async after plan displays
+  - Files: app/api/plans/generate-v2/route.ts
 
-- [x] BUG-004: Marking a meal cooked from the planner auto-redirects to home after 1.6s with no opt-out | Priority: MED | From: code audit 2026-05-07
-  - File: app/planner/page.tsx:111 — setTimeout(() => router.push('/'), 1600)
-  - After marking any single meal cooked, the user is forcibly navigated home. Breaks the flow for users managing multiple meals (marking several as cooked, swapping others). No way to cancel or stay on planner.
-  - Reproduce: open planner with multiple uncooked meals → mark one cooked → observe auto-navigation to home 1.6 s later.
-  - Fix: remove the auto-redirect; let the toast message fade on its own and keep the user on the planner.
+---
 
-- [x] BUG-005: Recipe detail page (/recipes/[id]) has no BottomNav — users are stranded | Priority: MED | From: code audit 2026-05-07
-  - File: app/recipes/[id]/page.tsx — root element is a bare <div>, no BottomNav imported or rendered.
-  - After tapping "Let's cook →" (home) or "Recipe" (planner), users land on the recipe page with no way to navigate elsewhere except the "Back" button. On mobile web there is no persistent nav.
-  - Initial fix (2026-05-07): added <BottomNav /> directly in page component — WRONG, created duplicate nav.
-  - Corrected fix (2026-05-08): removed <BottomNav /> from page — layout.tsx already renders it globally for all routes. Verified by Playwright E2E regression test. Deployed via PR #2.
+### STAGE 2 — Schema migration (one migration covers FEAT-001 + FEAT-002 + FEAT-005)
+Do this as a single Supabase migration before any feature work. Read existing migrations in supabase/migrations/ first.
 
-## Testing tasks
-- [x] Set up test framework: Vitest + React Testing Library (decided 2026-05-07) | Priority: HIGH | From: founder — done: 2026-05-08 | agent: test-engineer
-- [x] Write unit tests for lib/supabase/ client utilities | Priority: MED | From: founder — done: 2026-05-08 | agent: test-engineer
-- [x] Write integration tests for /api/plans/generate-v2 | Priority: MED | From: founder — done: 2026-05-08 | agent: test-engineer
-- [x] Write integration tests for /api/preferences/save | Priority: MED | From: founder — done: 2026-05-08 | agent: test-engineer
-- [x] Set up Playwright E2E tests (54 tests across onboarding, home, planner, recipes flows) | Priority: MED | From: founder — done: 2026-05-08 | agent: test-engineer
+```sql
+-- meals table
+ALTER TABLE meals
+  ADD COLUMN meal_type text NOT NULL DEFAULT 'dinner'
+    CHECK (meal_type IN ('breakfast','brunch','lunch','dinner'));
 
-## Phase 1 bugs — live testing (pm-agent 2026-05-09)
+-- recipes table
+ALTER TABLE recipes
+  ADD COLUMN raw_text          text,
+  ADD COLUMN source            text DEFAULT 'ai_generated'
+    CHECK (source IN ('ai_generated','user_imported')),
+  ADD COLUMN recipe_type       text DEFAULT 'complete_meal'
+    CHECK (recipe_type IN ('main','side','salad','complete_meal')),
+  ADD COLUMN meal_type         text DEFAULT 'any'
+    CHECK (meal_type IN ('breakfast','brunch','lunch','dinner','any')),
+  ADD COLUMN prep_friendly     bool DEFAULT false,
+  ADD COLUMN assembly_time_mins int,
+  ADD COLUMN source_url        text,
+  ADD COLUMN excluded_from_plans bool DEFAULT false;
 
-- [x] BUG-008: Q1 onboarding dietary restrictions can be skipped — no validation | Priority: HIGH | From: pm-agent 2026-05-09
-  - Flow: Onboarding Q1 → tapped Next with nothing selected → proceeded to Q2 unblocked
-  - Expected (PRD): Q1 cannot be skipped; "None" chip must be explicitly selected if user has no restrictions
-  - Actual: empty selection silently passes, preferences saved with no dietary data
-  - Fix: add client-side guard — require at least one chip selected (including "None") before Next is enabled
-  - Done: 2026-05-10 | agent: frontend-engineer
+-- user_preferences table
+ALTER TABLE user_preferences
+  ADD COLUMN meal_types_default text[]  DEFAULT ARRAY['brunch','dinner'],
+  ADD COLUMN meal_days_default  jsonb   DEFAULT '{"brunch":5,"dinner":2}',
+  ADD COLUMN meal_prefs         jsonb   DEFAULT '{"brunch":{"prep_ahead":true,"max_assembly_mins":30},"dinner":{"prep_ahead":false}}',
+  ADD COLUMN health_goals       text    DEFAULT 'high protein, balanced';
+```
 
-- [ ] BUG-009: Plan generation consistently exceeds PRD <15s target — measured ~25s | Priority: HIGH | From: pm-agent 2026-05-09
-  - Flow: /planner/generate → submit pantry → wait for plan
-  - Expected (PRD): plan appears in <15s; Phase 1 exit criterion is <90s from cold start, but UX target is <15s
-  - Actual: 3 timed runs averaged ~25s
-  - Investigate: Claude Sonnet prompt size in generate-v2, streaming vs buffered response, whether shopping list generation is sequential
-  - Fix direction: stream plan tokens to UI as they arrive; defer shopping list generation to a separate async call after plan displays
+AC: [ ] Migration runs clean on production (test on branch first)
+    [ ] All existing rows unaffected (new columns have safe defaults)
 
-- [ ] BUG-010: Cook time absent from planner meal cards | Priority: MED | From: pm-agent 2026-05-09
-  - Flow: /planner — weekly meal grid
-  - Expected (PRD): each meal card shows meal name + cook time + reasoning note
-  - Actual: meal name and reasoning note visible; cook time missing from main card (cook time IS shown in swap alternatives, so the data exists)
-  - Fix: surface cook_time from the meals row in the planner card component
+---
 
-- [ ] BUG-011: Stale reasoning note persists after meal swap | Priority: MED | From: pm-agent 2026-05-09
-  - Flow: /planner → tap Swap → select reason → pick alternative → confirm
-  - Expected: swapped meal card updates with new meal name + new reasoning note
-  - Actual: new meal name shown but reasoning note still reads the previous meal's text
-  - Fix: ensure swap endpoint returns updated meal row including `reasoning` field, and planner state updates that field on swap
+### STAGE 3 — Recipe bank import (FEAT-002)
+Build this before FEAT-001 so the founder can seed her bank while FEAT-001 is being built.
+PRD: docs/prd/feat-002-recipe-bank-import.md
 
-- [ ] BUG-012: Week strip day tap opens planner overview, not the specific meal | Priority: LOW | From: pm-agent 2026-05-09
-  - Flow: Home screen week strip → tap a day chip
-  - Expected (PRD): tapping a day should surface that day's meal quickly
-  - Actual: routes to /planner top-of-page; user must scroll to find the day
-  - Fix: route to /planner#[day] anchor or scroll-to-card on mount using day param
+- [ ] FEAT-002a: POST /api/recipes/import route | Priority: HIGH | From: pm-agent 2026-05-11
+  - Inputs: anon_id, name, raw_text, recipe_type, meal_type[], source_url (optional)
+  - Stores: all fields + source='user_imported' scoped to anon_id
+  - No AI calls at import time — raw save only
+  - AC: [ ] Route validates anon_id, name, raw_text, recipe_type present; 400 if missing
+        [ ] Recipe saved with correct anon_id scoping
+        [ ] source_url stored as-is (no validation or fetch)
 
-- [ ] BUG-013: Cook mode unreachable — "Let's cook" routes to recipe detail, not step-by-step carousel | Priority: CRITICAL | From: pm-agent 2026-05-09
-  - Flow: Home "Let's cook" CTA → lands on /recipes/[id] (recipe detail), NOT cook mode
-  - Expected (PRD): "Let's cook" → step-by-step cook mode carousel (Phase 0 feature preserved)
-  - Also: "Let's cook" on /recipes/[id] → routes to /planner, not cook mode
-  - Also: "Plan Tonight" button on /kitchen fails silently (no navigation, no error)
-  - Cook mode appears completely unreachable from any entry point in the current build
-  - Fix: audit routing for cook mode; verify the cook mode carousel component still exists and wire home + recipe detail CTAs correctly
+- [ ] FEAT-002b: Import modal UI on /recipes page | Priority: HIGH | From: pm-agent 2026-05-11
+  - "Add recipe" button → modal: name field + recipe_type chips (Main/Side/Salad/Complete meal, single-select) + meal_type chips (Breakfast/Brunch/Lunch/Dinner/Any, multi-select, default Any) + source_url field (optional) + paste area
+  - Save disabled until name + recipe_type + raw_text filled
+  - On save: optimistic update, recipe card appears immediately, toast "Added to your bank"
+  - Source URL shown as link icon on recipe card; opens in new tab
+  - "Yours" label on user-imported cards
+  - AC: [ ] All fields wired correctly to POST /api/recipes/import
+        [ ] Save guard works (disabled until required fields filled)
+        [ ] Recipe card appears without page reload
+        [ ] Source URL link icon opens in new tab
 
-- [ ] BUG-014: Recipe bank shows cross-user / test data (47 recipes on fresh anon session) | Priority: HIGH | From: pm-agent 2026-05-09
-  - Flow: fresh localStorage clear → complete onboarding → navigate to /recipes
-  - Expected: empty recipe bank (no plan generated yet, no recipes imported)
-  - Actual: 47 recipes visible — these are test/seed data or other users' recipes leaking through
-  - Note: BUG-007 fixed the direct Supabase call to use API route with anon_id filter — but 47 recipes still show. Either the API route filter is not working correctly in production, or the DB contains seed rows with null user_id that are being returned
-  - Fix: check GET /api/recipes/list query — ensure it returns ONLY rows matching the current anon_id; if null-user_id seed rows exist in DB, delete or migrate them
+- [ ] FEAT-002c: Recipe bank filter chips | Priority: HIGH | From: pm-agent 2026-05-11
+  - Filter row above recipe grid: [All] [Main] [Side] [Salad] [Complete meal] + [Any] [Breakfast] [Brunch] [Lunch] [Dinner]
+  - Filters additive — "Side + Dinner" shows sides tagged dinner or Any
+  - Default: All, no active filter
+  - AC: [ ] Filter chips render and work client-side (no new API call needed if recipes already fetched)
+        [ ] Multiple active filters narrow correctly
+        [ ] Clearing filters returns full list
 
-## From PRD review (pm-agent 2026-05-09)
+---
 
-- [ ] ENG-PRD-001: Validate complete-meal AI generation quality before building on top of it | Priority: HIGH | From: pm-agent PRD review 2026-05-09
-  - The entire plan engine value prop depends on AI reliably generating protein + carb + veg with coordinated steps
-  - Task: run 20 test pantry inputs through generate-v2; score each: is the meal complete? are timing/steps coherent? is the shopping list extractable and accurate?
-  - Establish a quality floor; document failure modes; fix prompt before other plan engine work proceeds
-  - Do not build shopping list deduplication or recipe bank compounding on top of unvalidated AI output
+### STAGE 4 — Meal types + planning form + home card (FEAT-001)
+PRD: docs/prd/feat-001-brunch-meal-type.md — read fully before starting.
 
-- [ ] ENG-PRD-002: Add excluded_from_plans flag to recipes table and wire to "Won't make again" | Priority: HIGH | From: pm-agent PRD review 2026-05-09
-  - Migration: add boolean column excluded_from_plans (default false) to recipes table
-  - When user rates a meal "Won't make again": set excluded_from_plans = true on the linked recipe
-  - Plan generator (generate-v2): add filter to exclude recipes where excluded_from_plans = true
-  - This is the minimum viable learning loop — blocks until this is in, plans never improve
-  - Coordinate with PM-003 before building
+- [ ] FEAT-001a: Planning form — meal type selection + day counts | Priority: HIGH | From: pm-agent 2026-05-11
+  - Replace current form header with: meal type chips (Breakfast/Brunch/Lunch/Dinner, multi-select) + days stepper per selected type
+  - Pre-fill from user_preferences.meal_days_default on returning visits
+  - Send as meal_plan JSON to generate-v2: `{"brunch":5,"dinner":2}`
+  - AC: [ ] Chips + steppers render; steppers only show for selected meal types
+        [ ] Defaults pre-filled on return visit
+        [ ] meal_plan JSON sent correctly to generate-v2
 
-- [ ] ENG-PRD-003: Write pantry quantity handling rules explicitly into the generate-v2 prompt | Priority: HIGH | From: pm-agent PRD review 2026-05-09
-  - Current: prompt relies on model inference for quantities; risk of multi-meal plans that assume more ingredient than user has
-  - Rule to encode (pending PM-002 spec): proteins and fresh veg = use once per plan unless quantity specified; pantry staples = assume abundant
-  - After adding rule, test with "4 chicken thighs" pantry input: verify no plan uses chicken more than once
-  - Deliver as a prompt diff against the current generate-v2 system prompt
+- [ ] FEAT-001b: generate-v2 — meal type slots + rolling planning window | Priority: HIGH | From: pm-agent 2026-05-11
+  - Accept plan_start_date (today) + meal_plan JSON
+  - Generate slots per meal type; distribute across remaining days from plan_start_date
+  - Read meal_prefs from user_preferences to determine prep_ahead requirement per meal type
+  - For prep_ahead meal types: require prep_ahead.tonight + prep_ahead.tomorrow in output; assembly_time_mins ≤ max_assembly_mins; re-prompt once if missing
+  - For non-prep_ahead meal types: prep_ahead optional
+  - Post-generation: validate variety constraints; re-prompt once on failure (see FEAT-003 for full list)
+  - AC: [ ] Correct number of slots per meal type generated
+        [ ] Slots assigned to correct remaining days (not always from Monday)
+        [ ] Prep-ahead meals have prep_ahead populated; validated post-generation
+        [ ] Non-prep-ahead meals not required to have prep_ahead
 
-- [ ] ENG-PRD-004: Measure and assert full plan generation time end-to-end | Priority: MED | From: pm-agent PRD review 2026-05-09
-  - BUG-009 already tracks the ~25s timing issue; this task is broader
-  - Instrument the full generate-v2 pipeline: time each step (AI call, recipe parsing, shopping list generation, DB writes)
-  - Target: plan tokens stream to UI within 15s; shopping list and recipe bank saves can be async after
-  - If complete-meal model adds latency, consider streaming plan first and generating recipes asynchronously
+- [ ] FEAT-001c: Planner display — meal type sections + Remove meal | Priority: HIGH | From: pm-agent 2026-05-11
+  - Group meals by meal_type in planner view (prep-ahead types first)
+  - Each card: meal name + relevant subtitle + [Swap] + [Remove]
+  - Prep-ahead card subtitle: prep_ahead.tonight (or prep_ahead.tomorrow on day-of)
+  - Remove meal: DELETE or soft-delete the meal slot; no AI, no confirmation dialog
+  - Remove "Rethink remaining" button entirely
+  - AC: [ ] Meals grouped by meal type with section labels
+        [ ] Prep-ahead card shows prep_ahead instruction as subtitle
+        [ ] [Remove] clears slot silently
+        [ ] "Rethink remaining" gone
 
-- [ ] ENG-PRD-005: Build Profile screen before full plan generation flow redesign | Priority: MED | From: pm-agent PRD review 2026-05-09
-  - Progressive disclosure model from onboarding breaks if Profile screen doesn't exist — deferred settings become permanently inaccessible
-  - "Never on the menu" and cooking skill fields especially must be editable before the new plan generation flow ships
-  - Profile screen scope: as specified in UX handoff section 11 — two blocks, no account management, auto-save or single save button
+- [ ] FEAT-001d: Home "What's Cooking" card — state machine + three CTAs | Priority: HIGH | From: pm-agent 2026-05-11
+  - State machine (cooked-flag driven, no clock logic):
+    - Meal not cooked → show meal card with [Let's cook] + [Swap] + [Mark as cooked ✓]
+    - Meal marked cooked → rotate to next priority: dinner (if today) → tomorrow's prep-ahead → empty state
+  - [Swap] on home card opens same swap sheet as planner — no new UI, just a new entry point
+  - Swap reasons (updated set — see UX-014 in ux inbox for copy):
+    1. "Forgot to prep" — only shown for prep-ahead meal types; AI returns zero-prep alternatives only
+    2. "No time right now" — quickest option, ≤ 20 min
+    3. "Not feeling it" — different flavour, same time budget
+    4. "Missing an ingredient" — AI works around specified missing item
+  - AC: [ ] Three CTAs on home card for every active meal
+        [ ] Swap on home card works identically to planner swap
+        [ ] "Forgot to prep" reason only appears for prep-ahead meal types
+        [ ] "Forgot to prep" response excludes any recipe with prep_ahead required
+        [ ] Card rotates to next priority on cooked; does not require page refresh
 
-## Feature improvements
-- [x] IMP-001: generate-v2 saves last_pantry_input via update (no-op if prefs row missing) — use upsert instead | Priority: LOW | From: code audit 2026-05-07
-  - File: app/api/plans/generate-v2/route.ts:384-387
-  - Edge case: if preferences row doesn't exist at generate time, pantry pre-fill on next visit never works.
+- [ ] FEAT-001e: Profile — "My cooking" section | Priority: MED | From: pm-agent 2026-05-11
+  - Meal type chips (multi-select) + typical days stepper per selected type
+  - Saved to meal_types_default + meal_days_default + meal_prefs in user_preferences
+  - health_goals free text field with chip suggestions: "High protein, balanced" · "Lighter meals" · "Family-friendly" · "Quick and simple"
+  - AC: [ ] Profile saves meal defaults correctly
+        [ ] health_goals saved to user_preferences.health_goals
+        [ ] Planning form pre-fills from saved profile on next visit
+
+---
+
+### STAGE 5 — Bank-first generation + learning loop (FEAT-003 + FEAT-005)
+PRD: docs/prd/feat-003-bank-first-generation.md — read fully before starting.
+Depends on: FEAT-002 (recipes in bank) + FEAT-001b (meal_type on recipes for filtering)
+
+- [ ] FEAT-005: excluded_from_plans wired to "Won't make again" | Priority: HIGH | From: pm-agent 2026-05-11
+  - Schema done in Stage 2 migration
+  - When verdict = "Won't make again": UPDATE recipes SET excluded_from_plans = true WHERE id = linked recipe
+  - AC: [ ] "Won't make again" verdict sets excluded_from_plans = true
+        [ ] Recipe remains visible in bank (not deleted)
+        [ ] Recipe never appears in plan generation candidate list
+
+- [ ] FEAT-003: Bank-first plan generation + protein-first + health_goals | Priority: HIGH | From: pm-agent 2026-05-11
+  - Before calling Claude: fetch user recipe bank filtered by meal_type + NOT excluded_from_plans; recipe_type IN ('main','complete_meal') only
+  - Build candidate list; pass to prompt with instruction: prefer bank recipes, generate new only when < 2 candidates per slot
+  - Add to system prompt (verbatim):
+    - Protein-first: "For each meal slot, choose the protein source first based on pantry and health goals. Then select carbohydrates and vegetables that complement it."
+    - Health goals (hard constraint): fetch from user_preferences.health_goals
+    - Fusion guard: "Do not combine ingredients or techniques from different culinary traditions within a single dish unless the user has explicitly asked for fusion in their week context."
+    - Pantry quantities: "Proteins and fresh vegetables without quantities are available for one meal only. Pantry staples — spices, oils, canned goods, dry grains — are assumed abundant."
+  - Post-generation validation (re-prompt once on failure):
+    - Use-soon items in first 2 day-slots
+    - No same protein on consecutive days
+    - No same carb base 3+ times in plan
+  - For user-imported recipes selected from bank: pass raw_text; for AI-generated: pass steps_v2 summary
+  - AC: [ ] Candidate list fetched and passed to prompt before generation
+        [ ] Bank recipes used when ≥ 2 candidates available per slot
+        [ ] New recipes generated only when bank coverage < 2 per slot
+        [ ] Selected bank recipes referenced by ID — not re-saved
+        [ ] All four prompt additions present in system prompt
+        [ ] Post-generation validation runs; re-prompts once on failure
+        [ ] health_goals fetched server-side from user_preferences
+
+---
+
+### STAGE 6 — Generation quality check (before shipping to founder)
+
+- [ ] ENG-PRD-001: Validate AI generation quality across meal types | Priority: HIGH | From: pm-agent 2026-05-09
+  - Run 10 brunch + 10 dinner pantry inputs through generate-v2 after FEAT-001b + FEAT-003 are done
+  - Score each: complete meal? prep_ahead populated for brunch? timing coherent? shopping list extractable?
+  - Document failure modes; fix prompt before founder uses app for real planning
+  - Do not ship FEAT-003 to production without passing this check
+
+## Parked — not this sprint
+
+- [ ] BUG-010: Cook time missing from planner cards | PARKED
+- [ ] BUG-011: Stale reasoning note after swap | PARKED
+- [ ] BUG-012: Week strip day tap routing | PARKED
+- [ ] ENG-PRD-004: Broader latency instrumentation | PARKED — BUG-009 covers immediate need
+- [ ] ENG-PRD-005: Profile screen | PARKED — needed before UX redesign, but UX redesign is parked
+- [ ] IMP-001: generate-v2 upsert for last_pantry_input | PARKED (low impact)
 
 ## Processed (do not delete — useful context)
-# - [x] [TASK]: [description] — done: [date] | agent: [who did it]
-- [x] BUG-003: Regenerating a plan orphans cooked meals — done: 2026-05-07 | agent: backend-engineer
+- [x] BUG-001: Home page and recipe detail direct Supabase queries — done: 2026-05-07 | agent: backend-engineer
+- [x] BUG-002: Shopping list data leak (no anon_id guard) — done: 2026-05-07 | agent: backend-engineer
+- [x] BUG-003: Regenerating plan orphans cooked meals — done: 2026-05-07 | agent: backend-engineer
 - [x] BUG-004: Planner auto-redirect on mark cooked — done: 2026-05-07 | agent: backend-engineer
-- [x] BUG-005: Recipe detail no BottomNav — done: 2026-05-07 | agent: backend-engineer
-- [x] BUG-006: Preferences save failure — done: 2026-05-07 | agent: backend-engineer
+- [x] BUG-005: Recipe detail no BottomNav — done: 2026-05-07/08 | agent: backend-engineer + frontend-engineer
+- [x] BUG-006: Preferences save failure in production — done: 2026-05-07 | agent: backend-engineer
 - [x] BUG-007: Recipe bank direct Supabase call — done: 2026-05-07 | agent: backend-engineer
+- [x] BUG-008: Q1 dietary restrictions skippable — done: 2026-05-10 | agent: frontend-engineer
+- [x] Test framework: Vitest + RTL (25 tests) — done: 2026-05-08 | agent: test-engineer
+- [x] Playwright E2E: 54 tests, 132/132 passing — done: 2026-05-08 | agent: test-engineer
+- [x] IMP-001: generate-v2 upsert for last_pantry_input — done: 2026-05-07 | agent: backend-engineer

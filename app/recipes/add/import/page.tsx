@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, Link as LinkIcon } from 'lucide-react'
+import { getAnonId } from '@/lib/anon'
 
 export default function ImportRecipePage() {
   const router = useRouter()
@@ -20,7 +21,7 @@ export default function ImportRecipePage() {
       const res = await fetch('/api/recipes/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: trimmed }),
+        body: JSON.stringify({ url: trimmed, anon_id: getAnonId() }),
       })
       const data = await res.json()
       if (!res.ok) {

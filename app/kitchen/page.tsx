@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { KitchenSession, PrepTask, KitchenBatchOpportunity, Recipe } from '@/lib/types'
@@ -14,10 +14,8 @@ import {
   Sparkles,
   Sun,
   Layers,
-  AlertCircle,
   CheckCircle2,
   UtensilsCrossed,
-  RefreshCw,
   ArrowRight,
   ArrowLeft,
   Play,
@@ -286,11 +284,9 @@ function BatchCard({ opp, decided, onAccept, onDecline }: {
 
 export default function KitchenPage() {
   const router = useRouter()
-  const [isPending, startTransition] = useTransition()
   const [session, setSession] = useState<KitchenSession | null>(null)
   const [dinnerRecipe, setDinnerRecipe] = useState<Recipe | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
   const [cookMode, setCookMode] = useState(false)
   const [checkedTasks, setCheckedTasks] = useState<Record<number, boolean>>({})
   const [batchDecisions, setBatchDecisions] = useState<Record<number, 'yes' | 'no'>>({})
@@ -312,31 +308,6 @@ export default function KitchenPage() {
       })
       .catch(() => setLoading(false))
   }, [])
-
-  function handleGenerate() {
-    setError('')
-    startTransition(async () => {
-      try {
-        const res = await fetch('/api/kitchen/session', { method: 'POST' })
-        const data = await res.json()
-        if (!res.ok) { setError(data.error ?? 'Failed to generate session'); return }
-        const s = data.session as KitchenSession
-        setSession(s)
-        setCheckedTasks({})
-        setBatchDecisions({})
-        if (s.dinner_recipe_id) {
-          createClient()
-            .from('recipes')
-            .select('*')
-            .eq('id', s.dinner_recipe_id)
-            .single()
-            .then(({ data: r }) => setDinnerRecipe(r as Recipe))
-        }
-      } catch {
-        setError('Network error. Please try again.')
-      }
-    })
-  }
 
   const prepTasks = session?.prep_tasks ?? []
   const finishSteps = session?.tomorrow_finish_steps ?? []
@@ -370,21 +341,7 @@ export default function KitchenPage() {
             </p>
           </div>
         </div>
-        <Button onClick={handleGenerate} disabled={isPending}>
-          {isPending ? (
-            <><span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />Planning…</>
-          ) : (
-            <><RefreshCw className="w-4 h-4 mr-2" />{session ? 'Replan' : 'Plan Tonight'}</>
-          )}
-        </Button>
       </div>
-
-      {error && (
-        <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2 mb-4">
-          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
 
       {loading && (
         <div className="space-y-4 animate-pulse">
@@ -396,12 +353,12 @@ export default function KitchenPage() {
         </div>
       )}
 
-      {!loading && !session && !error && (
+      {!loading && !session && (
         <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
           <ChefHat className="w-16 h-16 text-muted-foreground" />
           <h2 className="text-xl font-semibold">No session yet</h2>
           <p className="text-muted-foreground max-w-xs">
-            Hit &ldquo;Plan Tonight&rdquo; to get tonight&apos;s dinner and tomorrow&apos;s prep mapped out.
+            Go to the planner and tap &ldquo;Let&apos;s cook&rdquo; on tonight&apos;s meal to get started.
           </p>
         </div>
       )}

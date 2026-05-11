@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, Plus, Trash2, BookmarkCheck, AlertCircle, PenLine } from 'lucide-react'
 import Link from 'next/link'
 import { Ingredient, MacrosPerServing } from '@/lib/types'
+import { getAnonId } from '@/lib/anon'
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -224,6 +225,7 @@ export default function ManualRecipePage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            anon_id: getAnonId(),
             name: name.trim(),
             cuisine_type: cuisineType || null,
             meal_type: mealType || null,

@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ArrowLeft, Sparkles, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 import { Recipe } from '@/lib/types'
+import { getAnonId } from '@/lib/anon'
 
 export default function GenerateRecipePage() {
   const router = useRouter()
@@ -51,7 +52,7 @@ export default function GenerateRecipePage() {
         const res = await fetch('/api/recipes/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ dish_name: dishName, modifier: modifier || undefined }),
+          body: JSON.stringify({ dish_name: dishName, modifier: modifier || undefined, anon_id: getAnonId() }),
         })
 
         const data = await res.json()

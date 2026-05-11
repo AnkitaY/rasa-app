@@ -11,16 +11,19 @@ const anthropic = new Anthropic()
  * saves to DB, and returns the saved recipe id.
  */
 export async function POST(request: NextRequest) {
-  let body: { url?: string }
+  let body: { url?: string; anon_id?: string }
   try {
     body = await request.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON.' }, { status: 400 })
   }
 
-  const { url } = body
+  const { url, anon_id } = body
   if (!url || typeof url !== 'string') {
     return NextResponse.json({ error: 'url is required.' }, { status: 400 })
+  }
+  if (!anon_id || typeof anon_id !== 'string') {
+    return NextResponse.json({ error: 'anon_id is required.', code: 'MISSING_ANON_ID' }, { status: 400 })
   }
 
   // Fetch the page content
@@ -120,6 +123,7 @@ Rules:
   const { data: saved, error: dbError } = await admin
     .from('recipes')
     .insert({
+      anon_id,
       user_id: null,
       name: parsed.name,
       cuisine_type: parsed.cuisine_type ?? null,

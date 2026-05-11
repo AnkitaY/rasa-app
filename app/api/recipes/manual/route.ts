@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { Ingredient, MacrosPerServing } from '@/lib/types'
 
@@ -7,6 +6,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const {
+      anon_id,
       name,
       cuisine_type,
       meal_type,
@@ -17,6 +17,7 @@ export async function POST(request: NextRequest) {
       macros_per_serving,
       batch_cookable,
     } = body as {
+      anon_id: string
       name: string
       cuisine_type: string | null
       meal_type: string | null
@@ -28,6 +29,9 @@ export async function POST(request: NextRequest) {
       batch_cookable: boolean
     }
 
+    if (!anon_id || typeof anon_id !== 'string') {
+      return NextResponse.json({ error: 'anon_id is required', code: 'MISSING_ANON_ID' }, { status: 400 })
+    }
     if (!name || typeof name !== 'string' || name.trim() === '') {
       return NextResponse.json({ error: 'name is required' }, { status: 400 })
     }
@@ -35,12 +39,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'At least one ingredient is required' }, { status: 400 })
     }
 
-    // Resolve the authenticated user (may be null before auth is wired up)
-    const anonClient = createClient()
-    const { data: { user } } = await anonClient.auth.getUser()
-
     const recipeToSave = {
-      user_id: user?.id ?? null,
+      anon_id,
+      user_id: null,
       name: name.trim(),
       cuisine_type: cuisine_type?.trim() || null,
       meal_type: meal_type?.trim() || null,

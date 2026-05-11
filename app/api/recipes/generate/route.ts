@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { GeneratedRecipe } from '@/lib/types'
 
@@ -19,10 +18,13 @@ batch_cookable, source_type: "ai_generated"}`
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { dish_name, modifier } = body as { dish_name: string; modifier?: string }
+    const { dish_name, modifier, anon_id } = body as { dish_name: string; modifier?: string; anon_id?: string }
 
     if (!dish_name || typeof dish_name !== 'string' || dish_name.trim() === '') {
       return NextResponse.json({ error: 'dish_name is required' }, { status: 400 })
+    }
+    if (!anon_id || typeof anon_id !== 'string') {
+      return NextResponse.json({ error: 'anon_id is required', code: 'MISSING_ANON_ID' }, { status: 400 })
     }
 
     const userMessage = modifier
@@ -50,18 +52,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Resolve the authenticated user (may be null before auth is wired up)
-    const anonClient = createClient()
-    const { data: { user } } = await anonClient.auth.getUser()
-
     // Build the raw input string — dish name + modifier if provided.
-    // Stored verbatim so it can be reprocessed or audited later (DECISION-012).
     const sourceRawText = modifier
       ? `${dish_name.trim()}, ${modifier.trim()}`
       : dish_name.trim()
 
     const recipeToSave = {
-      user_id: user?.id ?? null,
+      anon_id,
+      user_id: null,
       name: recipe.name,
       cuisine_type: recipe.cuisine_type,
       meal_type: recipe.meal_type,

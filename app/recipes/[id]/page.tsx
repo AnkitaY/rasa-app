@@ -247,7 +247,7 @@ export default function RecipeDetailPage() {
       {/* ── Action row ──────────────────────────────────────────────────────── */}
       <div className="px-5 py-4 flex gap-3 border-b border-p1-border-lt bg-p1-card">
         <button
-          onClick={() => router.push('/planner')}
+          onClick={() => router.push(`/cook/${recipe.id}`)}
           className="flex-1 py-3 rounded-xl bg-p1-terra text-white text-sm font-ui font-semibold active:opacity-80"
         >
           Let&apos;s cook

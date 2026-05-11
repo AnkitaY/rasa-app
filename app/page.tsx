@@ -263,20 +263,29 @@ export default function HomePage() {
 
               {/* CTA buttons */}
               <div className="flex gap-2.5 mt-5">
-                {tonightMeal.recipe_id && (
+                {tonightMeal.recipe_id ? (
+                  <>
+                    <Link
+                      href={`/cook/${tonightMeal.recipe_id}`}
+                      className="flex-1 py-3 rounded-xl bg-white text-p1-terra text-sm font-ui font-bold text-center active:opacity-80"
+                    >
+                      Let&apos;s cook →
+                    </Link>
+                    <Link
+                      href={`/recipes/${tonightMeal.recipe_id}`}
+                      className="flex-1 py-3 rounded-xl bg-white/20 text-white text-sm font-ui font-semibold text-center active:opacity-80"
+                    >
+                      View full recipe
+                    </Link>
+                  </>
+                ) : (
                   <Link
-                    href={`/recipes/${tonightMeal.recipe_id}`}
-                    className="flex-1 py-3 rounded-xl bg-white text-p1-terra text-sm font-ui font-bold text-center active:opacity-80"
+                    href="/planner"
+                    className="flex-1 py-3 rounded-xl bg-white/20 text-white text-sm font-ui font-semibold text-center active:opacity-80"
                   >
-                    Let&apos;s cook →
+                    View plan
                   </Link>
                 )}
-                <Link
-                  href="/planner"
-                  className="flex-1 py-3 rounded-xl bg-white/20 text-white text-sm font-ui font-semibold text-center active:opacity-80"
-                >
-                  Full plan
-                </Link>
               </div>
             </>
           ) : (
