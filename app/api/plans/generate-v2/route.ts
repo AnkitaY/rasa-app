@@ -19,9 +19,14 @@ interface StepV2Input {
   tip_text?: string
 }
 
-interface PrepAheadInput {
+interface PrepAheadLegacy {
   task: string
   time_sensitive: boolean
+}
+
+interface PrepAheadV2 {
+  tonight: string
+  tomorrow: string
 }
 
 interface RecipeInput {
@@ -31,26 +36,43 @@ interface RecipeInput {
   servings: number
   ingredients: IngredientInput[]
   steps_v2: StepV2Input[]
-  prep_ahead: PrepAheadInput[]
+  prep_ahead: PrepAheadV2 | PrepAheadLegacy[]
+  prep_friendly?: boolean
+  assembly_time_mins?: number
   is_complete_meal: boolean
 }
 
 interface MealOutput {
   day: string
+  meal_type: 'breakfast' | 'brunch' | 'lunch' | 'dinner'
   recipe_name: string
   reasoning: string
   use_soon_priority: boolean
+  protein_source: string
+  carb_base: string
   recipe: RecipeInput
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function getCurrentWeekMonday(): string {
-  const today = new Date()
-  const day = today.getDay() // 0=Sun, 1=Mon … 6=Sat
-  const daysFromMonday = day === 0 ? 6 : day - 1
-  const monday = new Date(today)
-  monday.setDate(today.getDate() - daysFromMonday)
+function getRemainingWeekDays(planStartDate: string): string[] {
+  const date = new Date(planStartDate + 'T00:00:00')
+  const dow = date.getDay() // 0=Sun, 1=Mon…6=Sat
+  const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  if (dow === 0) return weekDays // Sunday → full Mon–Sat window
+  return weekDays.slice(dow - 1) // Mon=0…Sat=5
+}
+
+function getWeekStartDate(planStartDate: string): string {
+  const date = new Date(planStartDate + 'T00:00:00')
+  const dow = date.getDay()
+  if (dow === 0) {
+    const monday = new Date(date)
+    monday.setDate(date.getDate() + 1)
+    return monday.toISOString().split('T')[0]
+  }
+  const monday = new Date(date)
+  monday.setDate(date.getDate() - (dow - 1))
   return monday.toISOString().split('T')[0]
 }
 
@@ -81,6 +103,16 @@ function whoForDescription(whoFor: string, servings: number): string {
   if (whoFor === 'family_young_kids') return `Family with young children. ${s} Keep spice mild, textures familiar, nothing unusual for kids.`
   if (whoFor === 'family_teens') return `Family with teenagers. ${s} Bigger portions, bolder flavours welcome.`
   return `Cooking for 2. ${s}`
+}
+
+function isPrepAheadV2(pa: unknown): pa is PrepAheadV2 {
+  return (
+    typeof pa === 'object' &&
+    pa !== null &&
+    !Array.isArray(pa) &&
+    typeof (pa as PrepAheadV2).tonight === 'string' &&
+    typeof (pa as PrepAheadV2).tomorrow === 'string'
+  )
 }
 
 // Incrementally extract complete MealOutput objects from a growing JSON string.
@@ -131,6 +163,88 @@ function extractNextMeals(text: string, cursor: number): { meals: MealOutput[]; 
   return { meals, cursor: pos }
 }
 
+// ── Validation ───────────────────────────────────────────────────────────────
+
+interface ValidationResult {
+  valid: boolean
+  issues: string[]
+}
+
+function validatePlan(
+  meals: MealOutput[],
+  prepAheadTypes: Set<string>,
+  useSoon: string | undefined
+): ValidationResult {
+  const issues: string[] = []
+  const dayOrder = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+  // 1. Prep-ahead structure check
+  for (const m of meals) {
+    if (prepAheadTypes.has(m.meal_type)) {
+      if (!isPrepAheadV2(m.recipe.prep_ahead)) {
+        issues.push(
+          `${m.meal_type} meal "${m.recipe_name}" is missing prep_ahead.tonight and prep_ahead.tomorrow. Both fields are required for ${m.meal_type} recipes.`
+        )
+      }
+    }
+  }
+
+  // 2. Use-soon items in first 2 day-slots
+  if (useSoon && useSoon.trim()) {
+    const sorted = [...meals].sort((a, b) => dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day))
+    const uniqueDays = Array.from(new Set(sorted.map(m => m.day)))
+    const first2Days = new Set(uniqueDays.slice(0, 2))
+    const first2Meals = meals.filter(m => first2Days.has(m.day))
+    const keyword = useSoon.split(',')[0].trim().toLowerCase()
+    const found = first2Meals.some(
+      m =>
+        m.use_soon_priority ||
+        m.reasoning.toLowerCase().includes(keyword) ||
+        m.recipe_name.toLowerCase().includes(keyword)
+    )
+    if (!found) {
+      issues.push(
+        `Use-soon item "${useSoon}" must appear in a meal in the first 2 days of the plan. Assign at least one meal using this ingredient to the earliest available day slot.`
+      )
+    }
+  }
+
+  // 3. No same protein on consecutive days
+  const sortedMeals = [...meals].sort((a, b) => dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day))
+  for (let i = 0; i < sortedMeals.length - 1; i++) {
+    const curr = sortedMeals[i]
+    const next = sortedMeals[i + 1]
+    if (
+      curr.protein_source &&
+      next.protein_source &&
+      curr.protein_source.toLowerCase() === next.protein_source.toLowerCase() &&
+      dayOrder.indexOf(next.day) === dayOrder.indexOf(curr.day) + 1
+    ) {
+      issues.push(
+        `Same protein (${curr.protein_source}) on consecutive days ${curr.day} and ${next.day}. Change one of these meals to use a different protein source.`
+      )
+    }
+  }
+
+  // 4. No same carb base 3+ times
+  const carbCounts: Record<string, number> = {}
+  for (const m of meals) {
+    if (m.carb_base) {
+      const carb = m.carb_base.toLowerCase()
+      carbCounts[carb] = (carbCounts[carb] ?? 0) + 1
+    }
+  }
+  for (const [carb, count] of Object.entries(carbCounts)) {
+    if (count >= 3) {
+      issues.push(
+        `"${carb}" is the carb base in ${count} meals. Reduce to at most 2 meals with this carb base.`
+      )
+    }
+  }
+
+  return { valid: issues.length === 0, issues }
+}
+
 // ── Route ────────────────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
@@ -144,11 +258,13 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const { anon_id, pantry_input, week_context, use_soon } = body as {
+  const { anon_id, pantry_input, week_context, use_soon, plan_start_date, meal_plan } = body as {
     anon_id: string
     pantry_input: string
     week_context?: string
     use_soon?: string
+    plan_start_date?: string
+    meal_plan?: Record<string, number>
   }
 
   if (!anon_id || typeof anon_id !== 'string') {
@@ -175,8 +291,56 @@ export async function POST(request: NextRequest) {
   const bannedIngredients: string | null = prefs?.banned_ingredients ?? null
   const skill: string | null = prefs?.skill_level ?? null
   const budget: string | null = prefs?.weeknight_budget ?? null
+  const mealPrefs: Record<string, { prep_ahead: boolean; max_assembly_mins?: number }> =
+    (prefs?.meal_prefs as Record<string, { prep_ahead: boolean; max_assembly_mins?: number }>) ??
+    { brunch: { prep_ahead: true, max_assembly_mins: 30 }, dinner: { prep_ahead: false } }
+  const healthGoals: string = (prefs?.health_goals as string) ?? 'high protein, balanced'
 
-  // 2. Build prompt lines
+  // 2. Compute rolling planning window
+  const startDate = (typeof plan_start_date === 'string' && plan_start_date)
+    ? plan_start_date
+    : new Date().toISOString().split('T')[0]
+  const remainingDays = getRemainingWeekDays(startDate)
+  const weekStartDate = getWeekStartDate(startDate)
+
+  // 3. Resolve meal_plan — fall back to user defaults
+  const effectiveMealPlan: Record<string, number> =
+    meal_plan ??
+    (prefs?.meal_days_default as Record<string, number>) ??
+    { brunch: 5, dinner: 2 }
+
+  // 4. Determine which meal types require prep_ahead
+  const prepAheadTypes = new Set<string>(
+    Object.entries(mealPrefs)
+      .filter(([, v]) => v.prep_ahead)
+      .map(([k]) => k)
+  )
+
+  // 5. Build slot schedule instructions
+  const mealTypeSlotsInfo: string[] = []
+  const brunchCount = effectiveMealPlan['brunch'] ?? 0
+  const dinnerCount = effectiveMealPlan['dinner'] ?? 0
+
+  if (brunchCount > 0) {
+    const assigned = remainingDays.slice(0, Math.min(brunchCount, remainingDays.length))
+    mealTypeSlotsInfo.push(
+      `BRUNCH (${assigned.length} slots): assign to exactly these days in order: ${assigned.join(', ')}.`
+    )
+  }
+  if (dinnerCount > 0) {
+    mealTypeSlotsInfo.push(
+      `DINNER (${dinnerCount} slots): choose ${dinnerCount} day(s) from [${remainingDays.join(', ')}] based on week context. Busy days → simpler meals (≤30 min total). Occasion days → more involved.`
+    )
+  }
+  for (const [mtype, count] of Object.entries(effectiveMealPlan)) {
+    if (mtype !== 'brunch' && mtype !== 'dinner' && count > 0) {
+      mealTypeSlotsInfo.push(
+        `${mtype.toUpperCase()} (${count} slots): distribute across remaining days [${remainingDays.join(', ')}].`
+      )
+    }
+  }
+
+  // 6. Build prompt blocks
   const cuisineBlock =
     secondaryCuisines.length > 0
       ? `Primary cuisine: ${primaryCuisine} (60–70% of meals). Also weave in: ${secondaryCuisines.join(', ')}.`
@@ -191,16 +355,32 @@ export async function POST(request: NextRequest) {
     : ''
 
   const useSoonBlock = use_soon
-    ? `USE-SOON PRIORITY: The user has these items that must be used this week: "${use_soon}". Assign meals that use them to Monday and/or Tuesday. The reasoning for those meals must explicitly name the ingredient.`
+    ? `USE-SOON PRIORITY: The user has these items that must be used this week: "${use_soon}". Assign meals using them to the first 2 days of the plan. The reasoning for those meals must explicitly name the ingredient.`
     : ''
 
   const weekContextBlock = week_context
-    ? `WEEK CONTEXT: "${week_context}". Parse for busy nights (cook time ≤25 min) and occasion nights (go all-out on a treat meal).`
+    ? `WEEK CONTEXT: "${week_context}". Parse for busy days (cook time ≤25 min) and occasion days (go all-out).`
     : ''
 
-  const systemPrompt = `You are a warm, knowledgeable meal planning assistant. You create practical, delicious weekly dinner plans tailored to the household. You always respond with valid JSON only — no markdown, no explanation, just the JSON object.`
+  const prepAheadInstructions: string[] = Array.from(prepAheadTypes).map(mtype => {
+    const mt = mealPrefs[mtype]
+    const maxMins = mt?.max_assembly_mins ?? 30
+    return `For every ${mtype} recipe, prep_ahead MUST be an object {"tonight": "...", "tomorrow": "..."} — "tonight" is what to prep the evening before (with time estimate), "tomorrow" is what to assemble at meal time (target ≤${maxMins} min). Never output a ${mtype} recipe without both fields.`
+  })
 
-  const userPrompt = `Generate a 7-dinner week plan for Mon–Sun.
+  const totalSlots = Object.values(effectiveMealPlan).reduce((s, n) => s + n, 0)
+
+  const systemPrompt = `You are a warm, knowledgeable meal planning assistant. You create practical, delicious weekly meal plans tailored to the household. You always respond with valid JSON only — no markdown, no explanation, just the JSON object.
+
+PROTEIN-FIRST: For each meal slot, choose the protein source first based on what's in the pantry and the user's health goals. Then select carbohydrates and vegetables that complement that protein. Do not assign a meal and then reverse-engineer the protein.
+
+HEALTH GOAL (hard constraint): ${healthGoals}. This is not optional — every meal must meet this constraint. For "high protein, balanced": every meal must include a clear protein source (meat, eggs, legumes, paneer, or tofu). Low-protein fillers (toast, plain rice, salads without protein) are not acceptable as standalone meals.
+
+Do not combine ingredients or techniques from different culinary traditions within a single dish unless the user has explicitly asked for fusion in their week context. A dish may be Indian or Italian or Mexican — not all three. When in doubt, keep the dish within one cuisine.
+
+Pantry items without quantities: treat proteins and fresh vegetables as available for one meal only unless the user specifies a quantity. Pantry staples — spices, oils, canned goods, dry grains — are assumed abundant and may appear in multiple meals.`
+
+  const userPrompt = `Generate a meal plan with ${totalSlots} total meals for the week starting ${startDate}.
 
 HOUSEHOLD:
 - ${whoForDescription(whoFor, servings)}
@@ -211,21 +391,27 @@ ${bannedBlock ? `- ${bannedBlock}` : ''}
 - ${cuisineBlock}
 ${useSoonBlock ? `\n${useSoonBlock}` : ''}${weekContextBlock ? `\n${weekContextBlock}` : ''}
 
+MEAL SLOTS TO GENERATE:
+${mealTypeSlotsInfo.join('\n')}
+
 WHAT THEY HAVE IN THE KITCHEN:
 ${pantry_input}
 
 RULES:
-1. Every meal is a COMPLETE MEAL — protein + carb + vegetables in one dish or one pot. No separate sides needed.
-2. No back-to-back meals using the same main protein.
-3. Vary effort: lighter/quicker Monday–Thursday, more ambitious Friday–Sunday.
-4. Weeknight cook times must respect the time budget above. Weekend meals can be longer.
-5. Each recipe needs genuine prep_ahead tasks (things doable earlier in the day or the night before).
-6. Reasoning is one casual, direct sentence — no "This dish provides…" openings. Write like a friend.
-7. Include 5–8 steps_v2 per recipe. Add tip callouts only where genuinely useful.
+1. Every meal is a COMPLETE MEAL — protein + carb + vegetables. No separate sides needed.
+2. No back-to-back meals using the same main protein across consecutive days.
+3. No carbohydrate base repeated more than twice across the full plan.
+4. Vary effort: lighter/quicker weekdays, more ambitious Friday–Saturday.
+5. Weeknight cook times must respect the time budget above.
+6. ${prepAheadInstructions.length > 0 ? prepAheadInstructions.join(' ') : 'Each recipe may include prep_ahead as an array of {task, time_sensitive} objects if the recipe benefits from advance prep.'}
+7. Reasoning is one casual, direct sentence — no "This dish provides…" openings. Write like a friend.
+8. Include 5–8 steps_v2 per recipe. Add tip callouts only where genuinely useful.
+9. protein_source: short label like "eggs", "paneer", "chicken", "moong dal".
+10. carb_base: short label like "rice", "roti", "bread", "oats".
 
 TIP TYPES (optional, only when it adds real value):
 - TIMING: warn about steps that take longer than expected
-- DONENESS: how to know it's actually ready (not just timer-based)
+- DONENESS: how to know it's actually ready
 - HEADS_UP: something that trips people up
 - CLEAN: a clean-as-you-go moment that saves hassle
 
@@ -234,9 +420,12 @@ Respond with ONLY this JSON structure:
   "meals": [
     {
       "day": "Mon",
+      "meal_type": "brunch",
       "recipe_name": "string",
       "reasoning": "string",
       "use_soon_priority": false,
+      "protein_source": "eggs",
+      "carb_base": "roti",
       "recipe": {
         "name": "string",
         "cuisine_type": "string",
@@ -248,18 +437,16 @@ Respond with ONLY this JSON structure:
         "steps_v2": [
           { "instruction": "string", "tip_type": "TIMING", "tip_text": "string" }
         ],
-        "prep_ahead": [
-          { "task": "string", "time_sensitive": false }
-        ],
+        "prep_ahead": { "tonight": "string", "tomorrow": "string" },
+        "prep_friendly": true,
+        "assembly_time_mins": 20,
         "is_complete_meal": true
       }
     }
   ]
-}
+}`
 
-Generate all 7 days in order: Mon, Tue, Wed, Thu, Fri, Sat, Sun.`
-
-  // 3. Stream tokens from Claude, emit meals as they're parsed, then save to DB
+  // 7. Stream tokens from Claude, emit meals as they're parsed, then save to DB
   const encoder = new TextEncoder()
 
   const stream = new ReadableStream<Uint8Array>({
@@ -268,6 +455,7 @@ Generate all 7 days in order: Mon, Tue, Wed, Thu, Fri, Sat, Sun.`
         controller.enqueue(encoder.encode(JSON.stringify(obj) + '\n'))
 
       try {
+        // First generation pass
         const claudeStream = anthropic.messages.stream({
           model: 'claude-sonnet-4-20250514',
           max_tokens: 8192,
@@ -277,7 +465,7 @@ Generate all 7 days in order: Mon, Tue, Wed, Thu, Fri, Sat, Sun.`
 
         let accumulated = ''
         let cursor = -1
-        const streamedMeals: MealOutput[] = []
+        let streamedMeals: MealOutput[] = []
 
         for await (const event of claudeStream) {
           if (
@@ -300,12 +488,43 @@ Generate all 7 days in order: Mon, Tue, Wed, Thu, Fri, Sat, Sun.`
           return
         }
 
-        // 4. Upsert recipes — check by name, insert if new, update if exists
+        // 8. Post-generation validation — re-prompt once if any check fails
+        const validation = validatePlan(streamedMeals, prepAheadTypes, use_soon)
+
+        if (!validation.valid) {
+          const fixPrompt = `The plan you generated has the following issues. Fix ONLY these issues, keep everything else the same, and return the complete corrected plan in the same JSON format:
+
+${validation.issues.map((issue, i) => `${i + 1}. ${issue}`).join('\n')}
+
+Return the complete corrected JSON with all meals.`
+
+          const fixResponse = await anthropic.messages.create({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 8192,
+            system: systemPrompt,
+            messages: [
+              { role: 'user', content: userPrompt },
+              { role: 'assistant', content: accumulated },
+              { role: 'user', content: fixPrompt },
+            ],
+          })
+
+          const fixText =
+            fixResponse.content[0]?.type === 'text' ? fixResponse.content[0].text : ''
+          const fixResult = extractNextMeals(fixText, -1)
+          if (fixResult.meals.length > 0) {
+            streamedMeals = fixResult.meals
+          }
+        }
+
+        // 9. Upsert recipes
         const recipeIdMap: Record<string, string> = {}
 
         for (const mealOut of streamedMeals) {
           const r = mealOut.recipe
           const recipeName = r.name ?? mealOut.recipe_name
+          const mealType = mealOut.meal_type ?? 'dinner'
+          const isPrep = isPrepAheadV2(r.prep_ahead)
 
           const { data: existing } = await admin
             .from('recipes')
@@ -326,6 +545,9 @@ Generate all 7 days in order: Mon, Tue, Wed, Thu, Fri, Sat, Sun.`
                 prep_ahead: r.prep_ahead,
                 is_complete_meal: true,
                 source_type: 'ai_generated',
+                meal_type: mealType,
+                prep_friendly: isPrep,
+                assembly_time_mins: r.assembly_time_mins ?? null,
               })
               .eq('id', existing.id)
             recipeIdMap[recipeName] = existing.id
@@ -336,7 +558,7 @@ Generate all 7 days in order: Mon, Tue, Wed, Thu, Fri, Sat, Sun.`
                 user_id: null,
                 name: recipeName,
                 cuisine_type: r.cuisine_type,
-                meal_type: 'dinner',
+                meal_type: mealType,
                 cook_time_minutes: r.cook_time_minutes,
                 servings: r.servings,
                 ingredients: r.ingredients,
@@ -346,6 +568,8 @@ Generate all 7 days in order: Mon, Tue, Wed, Thu, Fri, Sat, Sun.`
                 is_complete_meal: true,
                 batch_cookable: false,
                 source_type: 'ai_generated',
+                prep_friendly: isPrep,
+                assembly_time_mins: r.assembly_time_mins ?? null,
                 macros_per_serving: null,
                 source_raw_text: null,
                 source_url: null,
@@ -361,10 +585,10 @@ Generate all 7 days in order: Mon, Tue, Wed, Thu, Fri, Sat, Sun.`
           }
         }
 
-        // 5. Build slots array
+        // 10. Build slots array
         const slotsArray: PlanSlot[] = streamedMeals.map(m => ({
           day: m.day,
-          meal_type: 'dinner',
+          meal_type: (m.meal_type ?? 'dinner') as PlanSlot['meal_type'],
           recipe_id: recipeIdMap[m.recipe_name ?? m.recipe?.name] ?? null,
           recipe_name: m.recipe_name,
           protein_g: 0,
@@ -379,9 +603,7 @@ Generate all 7 days in order: Mon, Tue, Wed, Thu, Fri, Sat, Sun.`
           batch_opportunities: [],
         }
 
-        // 6. Create or update week_plans row (preserve cooked meals on re-generate)
-        const weekStartDate = getCurrentWeekMonday()
-
+        // 11. Create or update week_plans row (preserve cooked meals on re-generate)
         const { data: existingPlan } = await admin
           .from('week_plans')
           .select('id')
@@ -449,11 +671,11 @@ Generate all 7 days in order: Mon, Tue, Wed, Thu, Fri, Sat, Sun.`
           weekPlanId = weekPlan.id
         }
 
-        // 7. Create meals rows
+        // 12. Create meals rows
         const mealRows = mealsToInsert.map(m => ({
           week_plan_id: weekPlanId,
           day: m.day,
-          meal_type: 'dinner',
+          meal_type: m.meal_type ?? 'dinner',
           recipe_name: m.recipe_name,
           eating_out: false,
           serve_with: null,
@@ -484,7 +706,7 @@ Generate all 7 days in order: Mon, Tue, Wed, Thu, Fri, Sat, Sun.`
           insertedMeals = newMeals ?? []
         }
 
-        // 8. Persist pantry snapshot to preferences
+        // 13. Persist pantry snapshot to preferences
         await admin
           .from('user_preferences')
           .upsert({ anon_id, last_pantry_input: pantry_input }, { onConflict: 'anon_id' })
