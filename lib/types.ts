@@ -28,6 +28,13 @@ export interface Recipe {
   user_rating: number | null
   last_cooked_date: string | null
   created_at: string
+  // S02 additions
+  raw_text: string | null
+  source: 'ai_generated' | 'user_imported' | null
+  recipe_type: 'main' | 'side' | 'salad' | 'complete_meal' | null
+  prep_friendly: boolean
+  assembly_time_mins: number | null
+  excluded_from_plans: boolean
 }
 
 export interface PlanSlot {
@@ -182,6 +189,11 @@ export interface UserPreferences {
   cook_days_per_week: number
   last_pantry_input: string | null
   created_at: string
+  // S02 additions
+  meal_types_default: string[]
+  meal_days_default: Record<string, number>
+  meal_prefs: Record<string, { prep_ahead: boolean; max_assembly_mins?: number }>
+  health_goals: string | null
 }
 
 /** A single planned meal in a week's plan */
@@ -189,7 +201,7 @@ export interface Meal {
   id: string
   week_plan_id: string
   day: string           // 'Mon'–'Sun'
-  meal_type: string     // 'dinner'
+  meal_type: 'breakfast' | 'brunch' | 'lunch' | 'dinner'
   recipe_name: string
   eating_out: boolean
   serve_with: string | null

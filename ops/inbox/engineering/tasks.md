@@ -60,8 +60,10 @@ ALTER TABLE user_preferences
   ADD COLUMN health_goals       text    DEFAULT 'high protein, balanced';
 ```
 
-AC: [ ] Migration runs clean on production (test on branch first)
-    [ ] All existing rows unaffected (new columns have safe defaults)
+AC: [x] Migration runs clean on production (test on branch first)
+    [x] All existing rows unaffected (new columns have safe defaults)
+- done: 2026-05-11 | agent: backend-engineer
+- Note: meals.meal_type already existed (no-op ADD COLUMN; check constraint added separately). recipes.meal_type already existed (skipped check constraint — one row with 'lunch/dinner' value). recipes.source_url already existed (skipped). All other columns added. lib/types.ts updated.
 
 ---
 
