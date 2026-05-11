@@ -4,7 +4,15 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { getAnonId } from '@/lib/anon'
-import { Meal } from '@/lib/types'
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+type StreamedMeal = {
+  day: string
+  recipe_name: string
+  reasoning?: string | null
+  use_soon_priority?: boolean
+}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -42,7 +50,7 @@ function buildLoadingMessages(useSoon: string, weekContext: string): string[] {
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
-type PageState = 'idle' | 'loading' | 'done'
+type PageState = 'idle' | 'loading' | 'streaming' | 'done'
 
 export default function GeneratePage() {
   const router = useRouter()
@@ -54,11 +62,12 @@ export default function GeneratePage() {
   const [weekContext, setWeekContext] = useState('')
   const [useSoon, setUseSoon] = useState('')
   const [loadingMsg, setLoadingMsg] = useState('')
-  const [meals, setMeals] = useState<Meal[]>([])
+  const [meals, setMeals] = useState<StreamedMeal[]>([])
   const [weekPlanId, setWeekPlanId] = useState('')
   const [visibleCount, setVisibleCount] = useState(0)
   const [error, setError] = useState('')
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const mealIndexRef = useRef(0)
 
   // Pre-fill pantry from last saved input
   useEffect(() => {
@@ -73,7 +82,7 @@ export default function GeneratePage() {
       .catch(() => {/* allow through */})
   }, [])
 
-  // Rotate loading messages
+  // Rotate loading messages while in the initial loading state
   useEffect(() => {
     if (pageState !== 'loading') {
       if (intervalRef.current) clearInterval(intervalRef.current)
@@ -91,21 +100,18 @@ export default function GeneratePage() {
     }
   }, [pageState, useSoon, weekContext])
 
-  // Stagger meal cards in after reveal
-  useEffect(() => {
-    if (meals.length === 0) return
-    setVisibleCount(0)
-    meals.forEach((_, i) => {
-      setTimeout(() => setVisibleCount(prev => Math.max(prev, i + 1)), i * 200)
-    })
-  }, [meals])
-
   async function handleGenerate() {
     if (!pantryInput.trim()) return
     setError('')
+    setMeals([])
+    setVisibleCount(0)
+    setWeekPlanId('')
+    mealIndexRef.current = 0
     setPageState('loading')
 
     const anonId = getAnonId()
+    let gotDone = false
+
     try {
       const res = await fetch('/api/plans/generate-v2', {
         method: 'POST',
@@ -117,14 +123,68 @@ export default function GeneratePage() {
           use_soon: useSoon.trim() || undefined,
         }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Unknown error')
 
-      setMeals(data.meals ?? [])
-      setWeekPlanId(data.week_plan_id ?? '')
-      setPageState('done')
+      // Pre-stream errors (400/500) are plain JSON
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error ?? 'Unknown error')
+      }
+
+      if (!res.body) throw new Error('No response body')
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+
+        // Process all complete lines
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
+
+        for (const line of lines) {
+          const trimmed = line.trim()
+          if (!trimmed) continue
+
+          let event: { type: string; meal?: StreamedMeal; week_plan_id?: string; meals?: StreamedMeal[]; message?: string }
+          try {
+            event = JSON.parse(trimmed)
+          } catch {
+            continue
+          }
+
+          if (event.type === 'meal' && event.meal) {
+            const idx = mealIndexRef.current++
+            setMeals(prev => [...prev, event.meal as StreamedMeal])
+            setPageState('streaming')
+            // 50ms delay lets React render the card at opacity:0 before transitioning to 1
+            setTimeout(() => setVisibleCount(c => Math.max(c, idx + 1)), 50)
+          } else if (event.type === 'done') {
+            gotDone = true
+            setWeekPlanId(event.week_plan_id ?? '')
+            if (event.meals && event.meals.length > 0) {
+              setMeals(event.meals)
+              setVisibleCount(event.meals.length)
+            }
+            setPageState('done')
+          } else if (event.type === 'error') {
+            throw new Error(event.message ?? 'Unknown error')
+          }
+        }
+      }
+
+      if (!gotDone) {
+        throw new Error('Plan generation did not complete')
+      }
     } catch {
       setPageState('idle')
+      setMeals([])
+      setVisibleCount(0)
+      mealIndexRef.current = 0
       setError("Hmm, something went wrong. Give it one more try?")
     }
   }
@@ -151,7 +211,7 @@ export default function GeneratePage() {
             {loadingMsg}
           </p>
           <p className="mt-3 text-sm text-p1-brown font-ui">
-            This takes about 30 seconds — we&apos;re writing full recipes, not just picking names.
+            First meal appears in a few seconds — full recipes take a little longer.
           </p>
         </div>
 
@@ -165,17 +225,24 @@ export default function GeneratePage() {
     )
   }
 
-  // ── Reveal screen ───────────────────────────────────────────────────────────
-  if (pageState === 'done') {
+  // ── Reveal screen (streaming + done) ─────────────────────────────────────────
+  if (pageState === 'streaming' || pageState === 'done') {
     const n = meals.length
+    const isSaving = pageState === 'streaming'
     return (
       <main className="min-h-screen bg-p1-cream pb-32">
-        {/* Forest success banner */}
-        <div className="bg-p1-forest px-5 py-3 flex items-center gap-2">
-          <span className="text-white text-sm">✓</span>
-          <p className="text-white text-sm font-ui">
-            These recipes have been saved to your bank.
-          </p>
+        {/* Status banner */}
+        <div className={`px-5 py-3 flex items-center gap-2 ${isSaving ? 'bg-p1-dark' : 'bg-p1-forest'}`}>
+          {isSaving ? (
+            <p className="text-white text-sm font-ui">Building your plan…</p>
+          ) : (
+            <>
+              <span className="text-white text-sm">✓</span>
+              <p className="text-white text-sm font-ui">
+                These recipes have been saved to your bank.
+              </p>
+            </>
+          )}
         </div>
 
         <div className="px-5 pt-7 pb-4">
@@ -183,18 +250,18 @@ export default function GeneratePage() {
             Your week is sorted. 🎉
           </h1>
           <p className="mt-1 text-sm text-p1-brown font-ui">
-            {n} dinner{n !== 1 ? 's' : ''}, zero decision fatigue.
+            {n} dinner{n !== 1 ? 's' : ''}{isSaving ? ' so far…' : ', zero decision fatigue.'}
           </p>
         </div>
 
-        {/* Meal cards — staggered reveal */}
+        {/* Meal cards — appear as each one streams in */}
         <div className="px-5 space-y-3">
           {meals.map((meal, i) => {
             const isToday = meal.day === TODAY_ABBR
             const isVisible = i < visibleCount
             return (
               <div
-                key={meal.id}
+                key={`${meal.day}-${i}`}
                 style={{
                   opacity: isVisible ? 1 : 0,
                   transform: isVisible ? 'translateY(0)' : 'translateY(20px)',
@@ -334,7 +401,7 @@ export default function GeneratePage() {
         </button>
 
         <p className="text-center text-xs text-p1-brown/50 font-ui">
-          Takes about 30 seconds — we write real recipes, not templates.
+          First meals appear in seconds — full recipes take a little longer.
         </p>
       </div>
     </main>

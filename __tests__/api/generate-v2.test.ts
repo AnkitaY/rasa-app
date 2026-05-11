@@ -3,11 +3,11 @@ import { NextRequest } from 'next/server'
 
 const TEST_UUID = '00000000-0000-0000-0000-000000000001'
 
-const mockMessagesCreate = vi.fn()
+const mockMessagesStream = vi.fn()
 
 vi.mock('@anthropic-ai/sdk', () => {
   function AnthropicMock() {
-    return { messages: { create: mockMessagesCreate } }
+    return { messages: { stream: mockMessagesStream } }
   }
   AnthropicMock.prototype = {}
   return { default: AnthropicMock }
@@ -36,6 +36,33 @@ const MOCK_MEALS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => 
 }))
 
 const VALID_AI_RESPONSE = JSON.stringify({ meals: MOCK_MEALS })
+
+// Returns an async iterable of MessageStreamEvents, emitting the full text in one delta
+function makeTextStream(text: string) {
+  async function* gen() {
+    yield {
+      type: 'content_block_delta' as const,
+      index: 0,
+      delta: { type: 'text_delta' as const, text },
+    }
+  }
+  return gen()
+}
+
+// Returns an async iterable that throws immediately (simulates Claude API error)
+function makeErrorStream(err: Error) {
+  async function* gen(): AsyncGenerator<never> { throw err }
+  return gen()
+}
+
+// Reads a streaming NDJSON response and returns the parsed event objects
+async function readNDJSON(res: Response): Promise<Array<Record<string, unknown>>> {
+  const text = await res.text()
+  return text
+    .split('\n')
+    .filter(l => l.trim())
+    .map(l => JSON.parse(l) as Record<string, unknown>)
+}
 
 function buildSupabaseMock({
   prefsData = null,
@@ -67,6 +94,7 @@ function buildSupabaseMock({
         update: vi.fn().mockReturnValue({
           eq: vi.fn().mockResolvedValue({ error: null }),
         }),
+        upsert: vi.fn().mockResolvedValue({ data: null, error: null }),
       }
     }
 
@@ -139,6 +167,7 @@ function buildSupabaseMock({
       eq: vi.fn().mockReturnThis(),
       insert: vi.fn().mockReturnThis(),
       update: vi.fn().mockReturnThis(),
+      upsert: vi.fn().mockResolvedValue({ data: null, error: null }),
       maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
     }
   })
@@ -158,22 +187,26 @@ describe('POST /api/plans/generate-v2', () => {
   beforeEach(() => {
     vi.resetModules()
     mockFrom.mockReset()
-    mockMessagesCreate.mockReset()
+    mockMessagesStream.mockReset()
   })
 
-  it('happy path — valid anon_id + pantry_input — returns 200 with plan shape', async () => {
+  it('happy path — valid anon_id + pantry_input — streams meals then done event', async () => {
     buildSupabaseMock()
-    mockMessagesCreate.mockResolvedValue({
-      content: [{ type: 'text', text: VALID_AI_RESPONSE }],
-    })
+    mockMessagesStream.mockReturnValue(makeTextStream(VALID_AI_RESPONSE))
 
     const res = await callRoute({ anon_id: TEST_UUID, pantry_input: 'chicken, rice, broccoli' })
     expect(res.status).toBe(200)
-    const json = await res.json()
-    expect(json.ok).toBe(true)
-    expect(json.week_plan_id).toBeDefined()
-    expect(Array.isArray(json.meals)).toBe(true)
-    expect(typeof json.recipe_ids).toBe('object')
+    expect(res.headers.get('content-type')).toContain('ndjson')
+
+    const events = await readNDJSON(res)
+    const mealEvents = events.filter(e => e.type === 'meal')
+    const doneEvent = events.find(e => e.type === 'done')
+
+    expect(mealEvents).toHaveLength(7)
+    expect(doneEvent).toBeDefined()
+    expect(doneEvent?.week_plan_id).toBeDefined()
+    expect(Array.isArray(doneEvent?.meals)).toBe(true)
+    expect(typeof doneEvent?.recipe_ids).toBe('object')
   })
 
   it('missing anon_id — returns 400', async () => {
@@ -208,67 +241,67 @@ describe('POST /api/plans/generate-v2', () => {
     expect(res.status).toBe(400)
   })
 
-  it('Anthropic SDK throws — returns 500', async () => {
+  it('Anthropic SDK throws — stream contains error event', async () => {
     buildSupabaseMock()
-    mockMessagesCreate.mockRejectedValue(new Error('Anthropic API error'))
+    mockMessagesStream.mockReturnValue(makeErrorStream(new Error('Anthropic API error')))
 
     const res = await callRoute({ anon_id: TEST_UUID, pantry_input: 'chicken, rice' })
-    expect(res.status).toBe(500)
-    const json = await res.json()
-    expect(json.error).toBeDefined()
+    expect(res.status).toBe(200)
+    const events = await readNDJSON(res)
+    const errEvent = events.find(e => e.type === 'error')
+    expect(errEvent).toBeDefined()
+    expect(typeof errEvent?.message).toBe('string')
   })
 
-  it('AI returns invalid JSON — returns 500', async () => {
+  it('AI returns invalid JSON — stream contains error event', async () => {
     buildSupabaseMock()
-    mockMessagesCreate.mockResolvedValue({
-      content: [{ type: 'text', text: 'sorry I cannot do that' }],
-    })
+    mockMessagesStream.mockReturnValue(makeTextStream('sorry I cannot do that'))
 
     const res = await callRoute({ anon_id: TEST_UUID, pantry_input: 'chicken, rice' })
-    expect(res.status).toBe(500)
-    const json = await res.json()
-    expect(json.error).toBeDefined()
+    expect(res.status).toBe(200)
+    const events = await readNDJSON(res)
+    const errEvent = events.find(e => e.type === 'error')
+    expect(errEvent).toBeDefined()
   })
 
-  it('AI returns empty meals array — returns 500', async () => {
+  it('AI returns empty meals array — stream contains error event', async () => {
     buildSupabaseMock()
-    mockMessagesCreate.mockResolvedValue({
-      content: [{ type: 'text', text: JSON.stringify({ meals: [] }) }],
-    })
+    mockMessagesStream.mockReturnValue(makeTextStream(JSON.stringify({ meals: [] })))
 
     const res = await callRoute({ anon_id: TEST_UUID, pantry_input: 'chicken, rice' })
-    expect(res.status).toBe(500)
+    expect(res.status).toBe(200)
+    const events = await readNDJSON(res)
+    const errEvent = events.find(e => e.type === 'error')
+    expect(errEvent).toBeDefined()
   })
 
-  it('supabase week_plans insert failure — returns 500', async () => {
+  it('supabase week_plans insert failure — stream contains error event', async () => {
     buildSupabaseMock({ weekPlanInsertError: { message: 'insert failed' } })
-    mockMessagesCreate.mockResolvedValue({
-      content: [{ type: 'text', text: VALID_AI_RESPONSE }],
-    })
+    mockMessagesStream.mockReturnValue(makeTextStream(VALID_AI_RESPONSE))
 
     const res = await callRoute({ anon_id: TEST_UUID, pantry_input: 'chicken, rice' })
-    expect(res.status).toBe(500)
-    const json = await res.json()
-    expect(json.error).toBeDefined()
+    expect(res.status).toBe(200)
+    const events = await readNDJSON(res)
+    const errEvent = events.find(e => e.type === 'error')
+    expect(errEvent).toBeDefined()
+    expect(typeof errEvent?.message).toBe('string')
   })
 
-  it('supabase meals insert failure — returns 500', async () => {
+  it('supabase meals insert failure — stream contains error event', async () => {
     buildSupabaseMock({ mealsInsertError: { message: 'meals insert failed' } })
-    mockMessagesCreate.mockResolvedValue({
-      content: [{ type: 'text', text: VALID_AI_RESPONSE }],
-    })
+    mockMessagesStream.mockReturnValue(makeTextStream(VALID_AI_RESPONSE))
 
     const res = await callRoute({ anon_id: TEST_UUID, pantry_input: 'chicken, rice' })
-    expect(res.status).toBe(500)
-    const json = await res.json()
-    expect(json.error).toBeDefined()
+    expect(res.status).toBe(200)
+    const events = await readNDJSON(res)
+    const errEvent = events.find(e => e.type === 'error')
+    expect(errEvent).toBeDefined()
+    expect(typeof errEvent?.message).toBe('string')
   })
 
   it('passes week_context and use_soon through to prompt without error', async () => {
     buildSupabaseMock()
-    mockMessagesCreate.mockResolvedValue({
-      content: [{ type: 'text', text: VALID_AI_RESPONSE }],
-    })
+    mockMessagesStream.mockReturnValue(makeTextStream(VALID_AI_RESPONSE))
 
     const res = await callRoute({
       anon_id: TEST_UUID,
@@ -277,7 +310,7 @@ describe('POST /api/plans/generate-v2', () => {
       use_soon: 'spinach',
     })
     expect(res.status).toBe(200)
-    expect(mockMessagesCreate).toHaveBeenCalledWith(
+    expect(mockMessagesStream).toHaveBeenCalledWith(
       expect.objectContaining({
         messages: expect.arrayContaining([
           expect.objectContaining({
@@ -286,5 +319,7 @@ describe('POST /api/plans/generate-v2', () => {
         ]),
       })
     )
+    const events = await readNDJSON(res)
+    expect(events.find(e => e.type === 'done')).toBeDefined()
   })
 })

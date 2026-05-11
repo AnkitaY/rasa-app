@@ -43,10 +43,6 @@ interface MealOutput {
   recipe: RecipeInput
 }
 
-interface AIResponse {
-  meals: MealOutput[]
-}
-
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function getCurrentWeekMonday(): string {
@@ -85,6 +81,54 @@ function whoForDescription(whoFor: string, servings: number): string {
   if (whoFor === 'family_young_kids') return `Family with young children. ${s} Keep spice mild, textures familiar, nothing unusual for kids.`
   if (whoFor === 'family_teens') return `Family with teenagers. ${s} Bigger portions, bolder flavours welcome.`
   return `Cooking for 2. ${s}`
+}
+
+// Incrementally extract complete MealOutput objects from a growing JSON string.
+// cursor = -1 on first call; pass back result.cursor on subsequent calls.
+function extractNextMeals(text: string, cursor: number): { meals: MealOutput[]; cursor: number } {
+  const meals: MealOutput[] = []
+  let pos = cursor
+
+  if (pos < 0) {
+    const keyIdx = text.indexOf('"meals"')
+    if (keyIdx === -1) return { meals, cursor: -1 }
+    const arrIdx = text.indexOf('[', keyIdx)
+    if (arrIdx === -1) return { meals, cursor: -1 }
+    pos = arrIdx + 1
+  }
+
+  while (true) {
+    while (pos < text.length && ' \t\n\r,'.includes(text[pos])) pos++
+    if (pos >= text.length || text[pos] !== '{') break
+
+    const start = pos
+    let depth = 0
+    let inStr = false
+    let esc = false
+    let end = -1
+
+    for (let j = start; j < text.length; j++) {
+      const ch = text[j]
+      if (esc) { esc = false; continue }
+      if (ch === '\\' && inStr) { esc = true; continue }
+      if (ch === '"') { inStr = !inStr; continue }
+      if (inStr) continue
+      if (ch === '{') depth++
+      else if (ch === '}') { if (--depth === 0) { end = j; break } }
+    }
+
+    if (end === -1) { pos = start; break }
+
+    try {
+      meals.push(JSON.parse(text.slice(start, end + 1)) as MealOutput)
+      pos = end + 1
+    } catch {
+      pos = start
+      break
+    }
+  }
+
+  return { meals, cursor: pos }
 }
 
 // ── Route ────────────────────────────────────────────────────────────────────
@@ -215,240 +259,250 @@ Respond with ONLY this JSON structure:
 
 Generate all 7 days in order: Mon, Tue, Wed, Thu, Fri, Sat, Sun.`
 
-  // 3. Call Claude
-  let aiText: string
-  try {
-    const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 8192,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: userPrompt }],
-    })
-    aiText = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
-  } catch {
-    return NextResponse.json(
-      { error: "Couldn't build your week. Give it one more try?" },
-      { status: 500 }
-    )
-  }
+  // 3. Stream tokens from Claude, emit meals as they're parsed, then save to DB
+  const encoder = new TextEncoder()
 
-  // 4. Parse JSON
-  let parsed: AIResponse
-  try {
-    const match = aiText.match(/\{[\s\S]*\}/)
-    if (!match) throw new Error('No JSON found in response')
-    parsed = JSON.parse(match[0]) as AIResponse
-    if (!Array.isArray(parsed.meals) || parsed.meals.length === 0) {
-      throw new Error('meals array is empty')
-    }
-  } catch {
-    return NextResponse.json(
-      { error: "Couldn't build your week. Give it one more try?" },
-      { status: 500 }
-    )
-  }
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (obj: object) =>
+        controller.enqueue(encoder.encode(JSON.stringify(obj) + '\n'))
 
-  // 5. Upsert recipes — check by name, insert if new, update if exists
-  const recipeIdMap: Record<string, string> = {}
-
-  for (const mealOut of parsed.meals) {
-    const r = mealOut.recipe
-    const recipeName = r.name ?? mealOut.recipe_name
-
-    const { data: existing } = await admin
-      .from('recipes')
-      .select('id')
-      .eq('name', recipeName)
-      .is('user_id', null)
-      .maybeSingle()
-
-    if (existing?.id) {
-      await admin
-        .from('recipes')
-        .update({
-          cuisine_type: r.cuisine_type,
-          cook_time_minutes: r.cook_time_minutes,
-          servings: r.servings,
-          ingredients: r.ingredients,
-          steps_v2: r.steps_v2,
-          prep_ahead: r.prep_ahead,
-          is_complete_meal: true,
-          source_type: 'ai_generated',
+      try {
+        const claudeStream = anthropic.messages.stream({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 8192,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: userPrompt }],
         })
-        .eq('id', existing.id)
-      recipeIdMap[recipeName] = existing.id
-    } else {
-      const { data: inserted } = await admin
-        .from('recipes')
-        .insert({
-          user_id: null,
-          name: recipeName,
-          cuisine_type: r.cuisine_type,
+
+        let accumulated = ''
+        let cursor = -1
+        const streamedMeals: MealOutput[] = []
+
+        for await (const event of claudeStream) {
+          if (
+            event.type === 'content_block_delta' &&
+            event.delta.type === 'text_delta'
+          ) {
+            accumulated += event.delta.text
+            const result = extractNextMeals(accumulated, cursor)
+            cursor = result.cursor
+            for (const meal of result.meals) {
+              send({ type: 'meal', meal })
+              streamedMeals.push(meal)
+            }
+          }
+        }
+
+        if (streamedMeals.length === 0) {
+          send({ type: 'error', message: "Couldn't build your week. Give it one more try?" })
+          controller.close()
+          return
+        }
+
+        // 4. Upsert recipes — check by name, insert if new, update if exists
+        const recipeIdMap: Record<string, string> = {}
+
+        for (const mealOut of streamedMeals) {
+          const r = mealOut.recipe
+          const recipeName = r.name ?? mealOut.recipe_name
+
+          const { data: existing } = await admin
+            .from('recipes')
+            .select('id')
+            .eq('name', recipeName)
+            .is('user_id', null)
+            .maybeSingle()
+
+          if (existing?.id) {
+            await admin
+              .from('recipes')
+              .update({
+                cuisine_type: r.cuisine_type,
+                cook_time_minutes: r.cook_time_minutes,
+                servings: r.servings,
+                ingredients: r.ingredients,
+                steps_v2: r.steps_v2,
+                prep_ahead: r.prep_ahead,
+                is_complete_meal: true,
+                source_type: 'ai_generated',
+              })
+              .eq('id', existing.id)
+            recipeIdMap[recipeName] = existing.id
+          } else {
+            const { data: inserted } = await admin
+              .from('recipes')
+              .insert({
+                user_id: null,
+                name: recipeName,
+                cuisine_type: r.cuisine_type,
+                meal_type: 'dinner',
+                cook_time_minutes: r.cook_time_minutes,
+                servings: r.servings,
+                ingredients: r.ingredients,
+                steps: [],
+                steps_v2: r.steps_v2,
+                prep_ahead: r.prep_ahead,
+                is_complete_meal: true,
+                batch_cookable: false,
+                source_type: 'ai_generated',
+                macros_per_serving: null,
+                source_raw_text: null,
+                source_url: null,
+                user_rating: null,
+                last_cooked_date: null,
+              })
+              .select('id')
+              .single()
+
+            if (inserted?.id) {
+              recipeIdMap[recipeName] = inserted.id
+            }
+          }
+        }
+
+        // 5. Build slots array
+        const slotsArray: PlanSlot[] = streamedMeals.map(m => ({
+          day: m.day,
           meal_type: 'dinner',
-          cook_time_minutes: r.cook_time_minutes,
-          servings: r.servings,
-          ingredients: r.ingredients,
-          steps: [],
-          steps_v2: r.steps_v2,
-          prep_ahead: r.prep_ahead,
-          is_complete_meal: true,
-          batch_cookable: false,
-          source_type: 'ai_generated',
-          macros_per_serving: null,
-          source_raw_text: null,
-          source_url: null,
-          user_rating: null,
-          last_cooked_date: null,
-        })
-        .select('id')
-        .single()
+          recipe_id: recipeIdMap[m.recipe_name ?? m.recipe?.name] ?? null,
+          recipe_name: m.recipe_name,
+          protein_g: 0,
+          carbs_g: 0,
+          locked: false,
+          eating_out: false,
+        }))
 
-      if (inserted?.id) {
-        recipeIdMap[recipeName] = inserted.id
+        const generatedPlan = {
+          slots: slotsArray,
+          daily_totals: [],
+          batch_opportunities: [],
+        }
+
+        // 6. Create or update week_plans row (preserve cooked meals on re-generate)
+        const weekStartDate = getCurrentWeekMonday()
+
+        const { data: existingPlan } = await admin
+          .from('week_plans')
+          .select('id')
+          .eq('anon_id', anon_id)
+          .eq('week_start_date', weekStartDate)
+          .maybeSingle()
+
+        let weekPlanId: string
+        let mealsToInsert = streamedMeals
+
+        if (existingPlan?.id) {
+          const { data: cookedMeals } = await admin
+            .from('meals')
+            .select('day')
+            .eq('week_plan_id', existingPlan.id)
+            .eq('cooked', true)
+
+          const cookedDays = new Set((cookedMeals ?? []).map((m: { day: string }) => m.day))
+
+          await admin
+            .from('meals')
+            .delete()
+            .eq('week_plan_id', existingPlan.id)
+            .eq('cooked', false)
+
+          const { error: updateError } = await admin
+            .from('week_plans')
+            .update({
+              slots: generatedPlan,
+              pantry_snapshot: pantry_input,
+              week_context: week_context ?? null,
+              use_soon_text: use_soon ?? null,
+            })
+            .eq('id', existingPlan.id)
+
+          if (updateError) {
+            send({ type: 'error', message: "Couldn't build your week. Give it one more try?" })
+            controller.close()
+            return
+          }
+
+          weekPlanId = existingPlan.id
+          mealsToInsert = streamedMeals.filter(m => !cookedDays.has(m.day))
+        } else {
+          const { data: weekPlan, error: wpError } = await admin
+            .from('week_plans')
+            .insert({
+              user_id: null,
+              anon_id,
+              week_start_date: weekStartDate,
+              slots: generatedPlan,
+              pantry_snapshot: pantry_input,
+              week_context: week_context ?? null,
+              use_soon_text: use_soon ?? null,
+            })
+            .select('id')
+            .single()
+
+          if (wpError || !weekPlan) {
+            send({ type: 'error', message: "Couldn't build your week. Give it one more try?" })
+            controller.close()
+            return
+          }
+
+          weekPlanId = weekPlan.id
+        }
+
+        // 7. Create meals rows
+        const mealRows = mealsToInsert.map(m => ({
+          week_plan_id: weekPlanId,
+          day: m.day,
+          meal_type: 'dinner',
+          recipe_name: m.recipe_name,
+          eating_out: false,
+          serve_with: null,
+          reasoning: m.reasoning ?? null,
+          cooked: false,
+          cooked_at: null,
+          swapped_from: null,
+          verdict: null,
+          verdict_shown: false,
+          notes: null,
+          use_soon_priority: m.use_soon_priority ?? false,
+        }))
+
+        let insertedMeals: Record<string, unknown>[] = []
+
+        if (mealRows.length > 0) {
+          const { data: newMeals, error: mealsError } = await admin
+            .from('meals')
+            .insert(mealRows)
+            .select('*')
+
+          if (mealsError) {
+            send({ type: 'error', message: "Couldn't build your week. Give it one more try?" })
+            controller.close()
+            return
+          }
+
+          insertedMeals = newMeals ?? []
+        }
+
+        // 8. Persist pantry snapshot to preferences
+        await admin
+          .from('user_preferences')
+          .upsert({ anon_id, last_pantry_input: pantry_input }, { onConflict: 'anon_id' })
+
+        send({ type: 'done', week_plan_id: weekPlanId, meals: insertedMeals, recipe_ids: recipeIdMap })
+      } catch {
+        send({ type: 'error', message: "Couldn't build your week. Give it one more try?" })
       }
-    }
-  }
 
-  // 6. Build slots array (GeneratedPlan shape — Kitchen backward compat)
-  //    Kitchen reads week_plan.slots.slots, so we wrap in the GeneratedPlan envelope.
-  const slotsArray: PlanSlot[] = parsed.meals.map(m => ({
-    day: m.day,
-    meal_type: 'dinner',
-    recipe_id: recipeIdMap[m.recipe_name ?? m.recipe?.name] ?? null,
-    recipe_name: m.recipe_name,
-    protein_g: 0,
-    carbs_g: 0,
-    locked: false,
-    eating_out: false,
-  }))
+      controller.close()
+    },
+  })
 
-  const generatedPlan = {
-    slots: slotsArray,
-    daily_totals: [],
-    batch_opportunities: [],
-  }
-
-  // 7. Create or update week_plans row (preserve cooked meals on re-generate)
-  const weekStartDate = getCurrentWeekMonday()
-
-  const { data: existingPlan } = await admin
-    .from('week_plans')
-    .select('id')
-    .eq('anon_id', anon_id)
-    .eq('week_start_date', weekStartDate)
-    .maybeSingle()
-
-  let weekPlanId: string
-  let mealsToInsert = parsed.meals
-
-  if (existingPlan?.id) {
-    // Days that are already cooked — don't replace them with new AI-generated meals
-    const { data: cookedMeals } = await admin
-      .from('meals')
-      .select('day')
-      .eq('week_plan_id', existingPlan.id)
-      .eq('cooked', true)
-
-    const cookedDays = new Set((cookedMeals ?? []).map((m: { day: string }) => m.day))
-
-    // Remove only uncooked meals — cooked progress is preserved
-    await admin
-      .from('meals')
-      .delete()
-      .eq('week_plan_id', existingPlan.id)
-      .eq('cooked', false)
-
-    const { error: updateError } = await admin
-      .from('week_plans')
-      .update({
-        slots: generatedPlan,
-        pantry_snapshot: pantry_input,
-        week_context: week_context ?? null,
-        use_soon_text: use_soon ?? null,
-      })
-      .eq('id', existingPlan.id)
-
-    if (updateError) {
-      return NextResponse.json(
-        { error: "Couldn't build your week. Give it one more try?" },
-        { status: 500 }
-      )
-    }
-
-    weekPlanId = existingPlan.id
-    mealsToInsert = parsed.meals.filter(m => !cookedDays.has(m.day))
-  } else {
-    const { data: weekPlan, error: wpError } = await admin
-      .from('week_plans')
-      .insert({
-        user_id: null,
-        anon_id,
-        week_start_date: weekStartDate,
-        slots: generatedPlan,
-        pantry_snapshot: pantry_input,
-        week_context: week_context ?? null,
-        use_soon_text: use_soon ?? null,
-      })
-      .select('id')
-      .single()
-
-    if (wpError || !weekPlan) {
-      return NextResponse.json(
-        { error: "Couldn't build your week. Give it one more try?" },
-        { status: 500 }
-      )
-    }
-
-    weekPlanId = weekPlan.id
-  }
-
-  // 8. Create meals rows
-  const mealRows = mealsToInsert.map(m => ({
-    week_plan_id: weekPlanId,
-    day: m.day,
-    meal_type: 'dinner',
-    recipe_name: m.recipe_name,
-    eating_out: false,
-    serve_with: null,
-    reasoning: m.reasoning ?? null,
-    cooked: false,
-    cooked_at: null,
-    swapped_from: null,
-    verdict: null,
-    verdict_shown: false,
-    notes: null,
-    use_soon_priority: m.use_soon_priority ?? false,
-  }))
-
-  let insertedMeals: Record<string, unknown>[] = []
-
-  if (mealRows.length > 0) {
-    const { data: newMeals, error: mealsError } = await admin
-      .from('meals')
-      .insert(mealRows)
-      .select('*')
-
-    if (mealsError) {
-      return NextResponse.json(
-        { error: "Couldn't build your week. Give it one more try?" },
-        { status: 500 }
-      )
-    }
-
-    insertedMeals = newMeals ?? []
-  }
-
-  // 9. Persist pantry snapshot to preferences
-  // Use upsert so the row is created if missing — pure update is a no-op when
-  // the preferences row doesn't exist yet, which breaks pantry pre-fill.
-  await admin
-    .from('user_preferences')
-    .upsert({ anon_id, last_pantry_input: pantry_input }, { onConflict: 'anon_id' })
-
-  return NextResponse.json({
-    ok: true,
-    week_plan_id: weekPlanId,
-    meals: insertedMeals ?? [],
-    recipe_ids: recipeIdMap,
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'application/x-ndjson',
+      'Cache-Control': 'no-cache, no-transform',
+      'X-Accel-Buffering': 'no',
+    },
   })
 }
