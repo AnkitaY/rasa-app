@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await admin
     .from('recipes')
-    .select('id, name, cuisine_type, meal_type, cook_time_minutes, servings, is_complete_meal, created_at')
+    .select('id, name, cuisine_type, meal_type, cook_time_minutes, servings, is_complete_meal, raw_text, source, recipe_type, source_url, created_at')
     .eq('anon_id', anon_id)
     .is('deleted_at', null)
     .order('created_at', { ascending: false })

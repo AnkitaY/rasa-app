@@ -71,13 +71,15 @@ AC: [x] Migration runs clean on production (test on branch first)
 Build this before FEAT-001 so the founder can seed her bank while FEAT-001 is being built.
 PRD: docs/prd/feat-002-recipe-bank-import.md
 
-- [ ] FEAT-002a: POST /api/recipes/import route | Priority: HIGH | From: pm-agent 2026-05-11
+- [x] FEAT-002a: POST /api/recipes/import route | Priority: HIGH | From: pm-agent 2026-05-11
+  - done: 2026-05-11 | agent: backend-engineer
   - Inputs: anon_id, name, raw_text, recipe_type, meal_type[], source_url (optional)
   - Stores: all fields + source='user_imported' scoped to anon_id
   - No AI calls at import time — raw save only
-  - AC: [ ] Route validates anon_id, name, raw_text, recipe_type present; 400 if missing
-        [ ] Recipe saved with correct anon_id scoping
-        [ ] source_url stored as-is (no validation or fetch)
+  - AC: [x] Route validates anon_id, name, raw_text, recipe_type present; 400 if missing
+        [x] Recipe saved with correct anon_id scoping
+        [x] source_url stored as-is (no validation or fetch)
+  - Also: GET /api/recipes/list updated to return raw_text, source, recipe_type, source_url
 
 - [ ] FEAT-002b: Import modal UI on /recipes page | Priority: HIGH | From: pm-agent 2026-05-11
   - "Add recipe" button → modal: name field + recipe_type chips (Main/Side/Salad/Complete meal, single-select) + meal_type chips (Breakfast/Brunch/Lunch/Dinner/Any, multi-select, default Any) + source_url field (optional) + paste area
