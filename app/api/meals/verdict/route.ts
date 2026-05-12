@@ -7,6 +7,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
  *
  * - verdict provided → sets verdict + verdict_shown = true
  * - dismiss: true    → sets verdict_shown = true only (no verdict)
+ * - verdict = 'skip' → also sets excluded_from_plans = true on the linked recipe
  */
 export async function PATCH(request: NextRequest) {
   let body: { meal_id?: string; verdict?: string; dismiss?: boolean }
@@ -32,6 +33,18 @@ export async function PATCH(request: NextRequest) {
   }
 
   const admin = createAdminClient()
+
+  // Fetch recipe_name before the verdict update if we need to exclude the recipe
+  let recipeName: string | null = null
+  if (!dismiss && verdict === 'skip') {
+    const { data: meal } = await admin
+      .from('meals')
+      .select('recipe_name')
+      .eq('id', meal_id)
+      .maybeSingle()
+    recipeName = meal?.recipe_name ?? null
+  }
+
   const { error } = await admin
     .from('meals')
     .update(update)
@@ -39,6 +52,15 @@ export async function PATCH(request: NextRequest) {
 
   if (error) {
     return NextResponse.json({ error: 'Could not save your verdict.' }, { status: 500 })
+  }
+
+  // Exclude the recipe from future plans when user says "Won't make again"
+  if (recipeName) {
+    await admin
+      .from('recipes')
+      .update({ excluded_from_plans: true })
+      .eq('name', recipeName)
+      .is('user_id', null)
   }
 
   return NextResponse.json({ ok: true })
