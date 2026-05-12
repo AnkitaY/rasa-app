@@ -15,32 +15,28 @@
 
 ## BEFORE STAGE 3 (recipe bank import — FEAT-002)
 
-- [ ] UX-013: Design "Add recipe" import modal | Priority: HIGH | From: pm-agent 2026-05-11
+- [x] UX-013: Design "Add recipe" import modal | Priority: HIGH | From: pm-agent 2026-05-11
+  - done: 2026-05-11 | agent: frontend-engineer (implemented in components/ImportRecipeModal.tsx)
   - Fields (in order): recipe name (required) · recipe type chips — Main / Side / Salad / Complete meal (required, single-select) · meal occasion chips — Breakfast / Brunch / Lunch / Dinner / Any (multi-select, default: Any) · source URL (optional, labelled "Paste a link — Instagram, YouTube, anywhere") · paste area (required, large, no limit)
   - Tone: warm, not form-like. Paste area placeholder: "Paste anything — a OneNote note, an Instagram caption, a YouTube description. Rasa reads this when building your plan."
   - Save button disabled until name + recipe type + paste text filled
   - On save: modal closes, toast "Added to your bank", recipe appears instantly
-  - Deliverable: copy + field spec + interaction notes (no mockup required if copy + spec is clear)
 
-- [ ] UX-019: Recipe bank empty state — post BUG-014 fix | Priority: HIGH | From: pm-agent 2026-05-11
-  - After BUG-014 fix, a fresh session will correctly show 0 recipes. Current empty state unknown/untested.
-  - Required: warm empty state that makes the first import feel natural, not like an error
-  - Copy direction: "Your recipe bank is empty. Add a recipe you love and Rasa will plan around it."
-  - CTA: "Add your first recipe →" → opens import modal
-  - Deliverable: empty state copy + CTA spec
+- [x] UX-019: Recipe bank empty state — post BUG-014 fix | Priority: HIGH | From: pm-agent 2026-05-11
+  - done: 2026-05-11 | agent: frontend-engineer (implemented in app/recipes/page.tsx)
+  - Empty state: spec'd copy + CTA opens import modal
 
-- [ ] UX-020: Recipe card visual updates for import | Priority: HIGH | From: pm-agent 2026-05-11
-  - User-imported cards need: "Yours" label (small, p1-brown, top-left corner)
-  - Source URL: link icon on card (e.g. lucide `ExternalLink`) — only shown if source_url set; tapping opens in new tab
-  - Recipe type: consider whether to show recipe_type badge (Main/Side etc) or keep cards clean — recommend showing only for Side and Salad (to aid browsing); Main and Complete meal need no label
+- [x] UX-020: Recipe card visual updates for import | Priority: HIGH | From: pm-agent 2026-05-11
+  - done: 2026-05-11 | agent: frontend-engineer (implemented in app/recipes/page.tsx)
+  - "Yours" label on user-imported cards; ExternalLink icon when source_url set; Side/Salad type badge; meal_type badge (hides 'any')
   - AI-generated cards: no label, no icon — unchanged
-  - Deliverable: card spec with label/icon placement
 
 ---
 
 ## BEFORE STAGE 4 (meal types + planning form + home card — FEAT-001)
 
-- [ ] UX-016: Planning form redesign | Priority: HIGH | From: pm-agent 2026-05-11
+- [x] UX-016: Planning form redesign | Priority: HIGH | From: pm-agent 2026-05-11
+  - done: 2026-05-11 | agent: frontend-engineer (FEAT-001a)
   - Current form: pantry + week context + use-soon (three fields, plain layout)
   - New form (top to bottom):
     1. "What are you cooking this week?" — meal type chips: [Breakfast] [Brunch] [Lunch] [Dinner] (multi-select; pre-selected from profile defaults)
@@ -52,7 +48,8 @@
   - Tone for new fields: same warm conversational register as existing fields
   - Deliverable: updated form field order + copy for new fields
 
-- [ ] UX-012: Planner — meal type sections + card variants | Priority: HIGH | From: pm-agent 2026-05-11
+- [x] UX-012: Planner — meal type sections + card variants | Priority: HIGH | From: pm-agent 2026-05-11
+  - done: 2026-05-11 | agent: frontend-engineer (FEAT-001c)
   - Planner needs two labelled sections (prep-ahead meals first, then non-prep-ahead)
   - Prep-ahead card (e.g. brunch): primary text = meal name · subtitle = prep_ahead.tonight instruction · meta = assembly time · actions = [Swap] [Remove]
   - Non-prep-ahead card (e.g. dinner): primary text = meal name · subtitle = reasoning note · meta = cook time · actions = [Swap] [Remove]
@@ -61,7 +58,8 @@
   - "Rethink remaining" button: remove entirely
   - Deliverable: card component spec for both variants + section layout
 
-- [ ] UX-017: Home "What's Cooking" card — two states + three CTAs | Priority: HIGH | From: pm-agent 2026-05-11
+- [x] UX-017: Home "What's Cooking" card — two states + three CTAs | Priority: HIGH | From: pm-agent 2026-05-11
+  - done: 2026-05-11 | agent: frontend-engineer (FEAT-001d)
   - State A — active meal (not yet cooked):
     - For prep-ahead meal: title = meal name · subtitle = "Assemble in X min" (day-of) or "Prep tonight: [instruction]" (day-before)
     - For non-prep-ahead meal: title = meal name · subtitle = reasoning note · meta = cook time
@@ -73,7 +71,8 @@
   - Three-CTA layout: primary full-width on top; [Swap] + [Mark as cooked] side-by-side below (equal weight, smaller)
   - Deliverable: card state spec + CTA layout for both states
 
-- [ ] UX-014: Swap sheet — updated reasons + copy | Priority: HIGH | From: pm-agent 2026-05-11
+- [x] UX-014: Swap sheet — updated reasons + copy | Priority: HIGH | From: pm-agent 2026-05-11
+  - done: 2026-05-11 | agent: frontend-engineer (FEAT-001c/d)
   - Current reasons: "Missing an ingredient / No time tonight / Something else" — replace entirely
   - New reasons (display order):
     1. "Forgot to prep" — only shown when swapping a prep-ahead meal type; hidden otherwise
@@ -87,12 +86,14 @@
     - "Missing an ingredient" → plan around the specified missing item
   - Deliverable: updated swap sheet copy + reason list + mapping doc for backend
 
-- [ ] UX-015: Swap entry point on home card | Priority: HIGH | From: pm-agent 2026-05-11
+- [x] UX-015: Swap entry point on home card | Priority: HIGH | From: pm-agent 2026-05-11
+  - done: 2026-05-11 | agent: frontend-engineer (FEAT-001d)
   - [Swap] on home card opens same swap sheet as planner — no new UI, just a new trigger
   - Swap sheet must receive meal_type context from home card so it knows whether to show "Forgot to prep"
   - Deliverable: note to frontend that home card [Swap] passes meal_type to swap sheet
 
-- [ ] UX-018: Profile — "My cooking" section + health goals | Priority: MED | From: pm-agent 2026-05-11
+- [x] UX-018: Profile — "My cooking" section + health goals | Priority: MED | From: pm-agent 2026-05-11
+  - done: 2026-05-11 | agent: frontend-engineer (FEAT-001e)
   - New section in profile (after existing preferences):
     - "Which meals do you cook at home?" — same chips as planning form (Breakfast/Brunch/Lunch/Dinner), multi-select
     - Per selected meal type: "Typical [X] days per week" — stepper
@@ -105,11 +106,9 @@
 
 ## BEFORE STAGE 5 (bank-first generation — FEAT-003)
 
-- [ ] UX-004: Carb variety — prompt constraint spec | Priority: HIGH | From: pm-agent 2026-05-09
-  - This is primarily a backend/prompt concern but UX needs to confirm the user-visible outcome
-  - Constraint: max 2 meals sharing the same carb base in any week plan (applies to both brunch and dinner slots)
-  - UX question to resolve: if the AI violates this on the first attempt and re-prompts, should the user ever see a loading state longer than usual? If yes, what does the loading copy say?
-  - Deliverable: confirm constraint is invisible to user (just generates correctly); if loading extends, provide copy for extended loading state
+- [x] UX-004: Carb variety — prompt constraint spec | Priority: HIGH | From: pm-agent 2026-05-09
+  - done: 2026-05-11 | resolved: constraint is invisible to user (FEAT-003 post-generation validation re-prompts once server-side; user sees streaming begin normally)
+  - The re-prompt adds ~3-5s maximum — within BUG-009 streaming latency budget; no special loading copy needed
 
 ---
 
