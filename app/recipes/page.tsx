@@ -4,85 +4,128 @@ import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { getAnonId } from '@/lib/anon'
 import { Recipe } from '@/lib/types'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { Plus, Sparkles, Link as LinkIcon, PenLine, Search, X } from 'lucide-react'
+import { Plus, ExternalLink, X, Search } from 'lucide-react'
+import ImportRecipeModal, { ImportedRecipe } from '@/components/ImportRecipeModal'
 
-const CUISINE_FILTERS = ['All', 'Indian', 'Italian', 'Thai', 'Mexican', 'Mediterranean', 'Japanese', 'Chinese', 'Korean', 'Other']
+const TYPE_FILTERS = [
+  { value: 'All', label: 'All' },
+  { value: 'main', label: 'Main' },
+  { value: 'side', label: 'Side' },
+  { value: 'salad', label: 'Salad' },
+  { value: 'complete_meal', label: 'Complete meal' },
+]
+
+const MEAL_FILTERS = [
+  { value: 'any', label: 'Any' },
+  { value: 'breakfast', label: 'Breakfast' },
+  { value: 'brunch', label: 'Brunch' },
+  { value: 'lunch', label: 'Lunch' },
+  { value: 'dinner', label: 'Dinner' },
+]
 
 export default function RecipesPage() {
   const router = useRouter()
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [cuisineFilter, setCuisineFilter] = useState('All')
+  const [typeFilter, setTypeFilter] = useState('All')
+  const [mealFilter, setMealFilter] = useState('any')
+  const [importModalOpen, setImportModalOpen] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
 
   useEffect(() => {
     const anonId = getAnonId()
     fetch(`/api/recipes/list?anon_id=${encodeURIComponent(anonId)}`)
       .then(r => r.json())
-      .then(({ recipes }) => {
-        setRecipes((recipes as Recipe[]) ?? [])
+      .then(({ recipes: data }) => {
+        setRecipes((data as Recipe[]) ?? [])
       })
       .catch(() => {/* show empty state */})
       .finally(() => setLoading(false))
   }, [])
 
+  function showToast(msg: string) {
+    setToast(msg)
+    setTimeout(() => setToast(null), 3000)
+  }
+
+  function handleImported(recipe: ImportedRecipe) {
+    const newRecipe: Recipe = {
+      id: recipe.id,
+      name: recipe.name,
+      recipe_type: recipe.recipe_type as Recipe['recipe_type'],
+      meal_type: recipe.meal_type,
+      source: recipe.source as Recipe['source'],
+      source_url: recipe.source_url,
+      user_id: '',
+      cuisine_type: null,
+      servings: 1,
+      cook_time_minutes: null,
+      ingredients: [],
+      steps: [],
+      macros_per_serving: null,
+      batch_cookable: false,
+      source_type: 'user_imported',
+      source_raw_text: null,
+      user_rating: null,
+      last_cooked_date: null,
+      created_at: new Date().toISOString(),
+      raw_text: null,
+      prep_friendly: false,
+      assembly_time_mins: null,
+      excluded_from_plans: false,
+    }
+    setRecipes(prev => [newRecipe, ...prev])
+    showToast('Added to your bank')
+  }
+
   const filtered = useMemo(() => {
     return recipes.filter(r => {
       const q = search.toLowerCase()
-      const matchesSearch = !q
-        || r.name.toLowerCase().includes(q)
-        || (r.cuisine_type ?? '').toLowerCase().includes(q)
-      const matchesCuisine = cuisineFilter === 'All'
-        || (r.cuisine_type ?? '').toLowerCase().includes(cuisineFilter.toLowerCase())
-      return matchesSearch && matchesCuisine
+      const matchesSearch = !q || r.name.toLowerCase().includes(q)
+      const matchesType = typeFilter === 'All' || r.recipe_type === typeFilter
+      const matchesMeal =
+        mealFilter === 'any' || r.meal_type === mealFilter || r.meal_type === 'any'
+      return matchesSearch && matchesType && matchesMeal
     })
-  }, [recipes, search, cuisineFilter])
+  }, [recipes, search, typeFilter, mealFilter])
 
-  const hasFilter = cuisineFilter !== 'All' || search !== ''
+  const hasFilter = typeFilter !== 'All' || mealFilter !== 'any' || search !== ''
+
+  function clearFilters() {
+    setSearch('')
+    setTypeFilter('All')
+    setMealFilter('any')
+  }
 
   return (
     <main className="min-h-screen bg-p1-cream px-5 pt-12 pb-24">
 
-      {/* ── Header ──────────────────────────────────────────────────────── */}
+      {/* Toast */}
+      {toast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-p1-forest text-white text-sm font-ui font-medium px-5 py-3 rounded-2xl shadow-xl whitespace-nowrap"
+        >
+          {toast}
+        </div>
+      )}
+
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-ui font-bold text-p1-dark">Recipe bank</h1>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            className={cn(
-              buttonVariants({ variant: 'default' }),
-              'font-ui font-semibold text-xs px-3 py-2 h-auto rounded-xl bg-p1-terra border-0 text-white'
-            )}
-          >
-            <Plus className="w-3.5 h-3.5 mr-1.5" />
-            Add recipe
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem onClick={() => router.push('/recipes/add/generate')} className="font-ui">
-              <Sparkles className="w-4 h-4" />
-              Generate with AI
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push('/recipes/add/manual')} className="font-ui">
-              <PenLine className="w-4 h-4" />
-              Add manually
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push('/recipes/add/import')} className="font-ui">
-              <LinkIcon className="w-4 h-4" />
-              Import from URL
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <button
+          onClick={() => setImportModalOpen(true)}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-p1-terra text-white text-xs font-ui font-semibold active:opacity-80"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          Add recipe
+        </button>
       </div>
 
-      {/* ── Search ──────────────────────────────────────────────────────── */}
+      {/* Search */}
       <div className="relative mb-3">
         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-p1-brown/50 pointer-events-none" />
         <input
@@ -102,25 +145,43 @@ export default function RecipesPage() {
         )}
       </div>
 
-      {/* ── Cuisine filter chips ─────────────────────────────────────────── */}
-      <div className="flex gap-2 overflow-x-auto pb-3 -mx-1 px-1 mb-4 scrollbar-hide">
-        {CUISINE_FILTERS.map(c => (
+      {/* Type filter chips */}
+      <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 mb-2 scrollbar-hide">
+        {TYPE_FILTERS.map(f => (
           <button
-            key={c}
-            onClick={() => setCuisineFilter(c)}
+            key={f.value}
+            onClick={() => setTypeFilter(f.value)}
             className={cn(
               'shrink-0 px-3.5 py-1.5 rounded-full text-[11px] font-ui font-semibold border transition-all',
-              cuisineFilter === c
+              typeFilter === f.value
                 ? 'bg-p1-terra text-white border-p1-terra'
                 : 'bg-p1-card text-p1-brown border-p1-border'
             )}
           >
-            {c}
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Meal filter chips */}
+      <div className="flex gap-2 overflow-x-auto pb-3 -mx-1 px-1 mb-4 scrollbar-hide">
+        {MEAL_FILTERS.map(f => (
+          <button
+            key={f.value}
+            onClick={() => setMealFilter(f.value)}
+            className={cn(
+              'shrink-0 px-3.5 py-1.5 rounded-full text-[11px] font-ui font-semibold border transition-all',
+              mealFilter === f.value
+                ? 'bg-p1-terra text-white border-p1-terra'
+                : 'bg-p1-card text-p1-brown border-p1-border'
+            )}
+          >
+            {f.label}
           </button>
         ))}
         {hasFilter && (
           <button
-            onClick={() => { setSearch(''); setCuisineFilter('All') }}
+            onClick={clearFilters}
             className="shrink-0 flex items-center gap-1 px-3.5 py-1.5 rounded-full text-[11px] font-ui font-semibold border border-p1-terra/40 text-p1-terra bg-p1-terra-lt"
           >
             <X className="w-3 h-3" /> Clear
@@ -128,7 +189,7 @@ export default function RecipesPage() {
         )}
       </div>
 
-      {/* ── Count ───────────────────────────────────────────────────────── */}
+      {/* Count */}
       {!loading && recipes.length > 0 && (
         <p className="text-xs font-ui text-p1-brown mb-3">
           {filtered.length} of {recipes.length} recipe{recipes.length !== 1 ? 's' : ''}
@@ -136,7 +197,7 @@ export default function RecipesPage() {
         </p>
       )}
 
-      {/* ── Loading ─────────────────────────────────────────────────────── */}
+      {/* Loading */}
       {loading && (
         <div className="space-y-3">
           {[...Array(4)].map((_, i) => (
@@ -145,35 +206,34 @@ export default function RecipesPage() {
         </div>
       )}
 
-      {/* ── Empty — no recipes at all ─────────────────────────────────── */}
+      {/* Empty — no recipes at all */}
       {!loading && recipes.length === 0 && (
         <div className="flex flex-col items-center text-center pt-16 gap-4">
-          <span className="text-5xl">📖</span>
           <div>
-            <p className="text-base font-ui font-semibold text-p1-dark">
-              Your recipe bank is empty
+            <p className="text-base font-ui font-bold text-p1-dark">
+              Your recipe bank is empty.
             </p>
             <p className="text-sm font-ui text-p1-brown mt-1 max-w-xs">
-              Your bank fills up the moment you plan your first week — or add a recipe now.
+              Add a recipe you love and Rasa will plan around it.
             </p>
           </div>
           <button
-            onClick={() => router.push('/planner/generate')}
+            onClick={() => setImportModalOpen(true)}
             className="px-5 py-3 rounded-xl bg-p1-terra text-white text-sm font-ui font-semibold active:opacity-80"
           >
-            Plan my first week →
+            Add your first recipe →
           </button>
         </div>
       )}
 
-      {/* ── Empty — filter matched nothing ───────────────────────────── */}
+      {/* Empty — filter matched nothing */}
       {!loading && recipes.length > 0 && filtered.length === 0 && (
         <div className="flex flex-col items-center text-center pt-12 gap-3">
           <span className="text-4xl">🔍</span>
           <p className="text-base font-ui font-semibold text-p1-dark">Nothing matched that</p>
           <p className="text-sm font-ui text-p1-brown">Try tweaking the search or filters.</p>
           <button
-            onClick={() => { setSearch(''); setCuisineFilter('All') }}
+            onClick={clearFilters}
             className="text-sm font-ui font-semibold text-p1-terra"
           >
             Clear filters
@@ -181,15 +241,23 @@ export default function RecipesPage() {
         </div>
       )}
 
-      {/* ── Recipe grid ─────────────────────────────────────────────────── */}
+      {/* Recipe grid */}
       {!loading && filtered.length > 0 && (
         <div className="space-y-3">
           {filtered.map(recipe => (
-            <button
+            <div
               key={recipe.id}
+              role="button"
+              tabIndex={0}
               onClick={() => router.push(`/recipes/${recipe.id}`)}
-              className="w-full text-left rounded-2xl border border-p1-border bg-p1-card px-4 py-4 active:opacity-80 transition-opacity"
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') router.push(`/recipes/${recipe.id}`) }}
+              className="relative rounded-2xl border border-p1-border bg-p1-card px-4 py-4 cursor-pointer active:opacity-80 transition-opacity"
             >
+              {/* "Yours" label — user-imported cards only */}
+              {recipe.source === 'user_imported' && (
+                <p className="text-[10px] font-ui text-p1-brown mb-1">Yours</p>
+              )}
+
               <div className="flex items-start justify-between gap-3">
                 <h3 className="text-sm font-ui font-bold text-p1-dark leading-snug flex-1">
                   {recipe.name}
@@ -201,27 +269,49 @@ export default function RecipesPage() {
                 )}
               </div>
 
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {recipe.cuisine_type && (
-                  <span className="text-[10px] font-ui font-semibold px-2.5 py-1 rounded-full bg-p1-surface text-p1-brown">
-                    {recipe.cuisine_type.replace('_', ' ')}
-                  </span>
-                )}
-                {recipe.meal_type && (
-                  <span className="text-[10px] font-ui font-semibold px-2.5 py-1 rounded-full bg-p1-surface text-p1-brown capitalize">
-                    {recipe.meal_type}
-                  </span>
-                )}
-                {(recipe as Recipe & { is_complete_meal?: boolean }).is_complete_meal && (
-                  <span className="text-[10px] font-ui font-semibold px-2.5 py-1 rounded-full bg-p1-forest-lt text-p1-forest">
-                    Complete meal
-                  </span>
+              <div className="flex items-center justify-between mt-2 gap-2">
+                <div className="flex flex-wrap gap-1.5">
+                  {recipe.cuisine_type && (
+                    <span className="text-[10px] font-ui font-semibold px-2.5 py-1 rounded-full bg-p1-surface text-p1-brown">
+                      {recipe.cuisine_type.replace('_', ' ')}
+                    </span>
+                  )}
+                  {recipe.meal_type && recipe.meal_type !== 'any' && (
+                    <span className="text-[10px] font-ui font-semibold px-2.5 py-1 rounded-full bg-p1-surface text-p1-brown capitalize">
+                      {recipe.meal_type}
+                    </span>
+                  )}
+                  {(recipe.recipe_type === 'side' || recipe.recipe_type === 'salad') && (
+                    <span className="text-[10px] font-ui font-semibold px-2.5 py-1 rounded-full bg-p1-surface text-p1-brown capitalize">
+                      {recipe.recipe_type}
+                    </span>
+                  )}
+                </div>
+
+                {/* Source URL icon */}
+                {recipe.source_url && (
+                  <a
+                    href={recipe.source_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="View source"
+                    onClick={e => e.stopPropagation()}
+                    className="shrink-0 flex items-center justify-center w-11 h-11 -mr-2 -mb-2 text-p1-brown"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
                 )}
               </div>
-            </button>
+            </div>
           ))}
         </div>
       )}
+
+      <ImportRecipeModal
+        open={importModalOpen}
+        onOpenChange={setImportModalOpen}
+        onImported={handleImported}
+      />
     </main>
   )
 }
