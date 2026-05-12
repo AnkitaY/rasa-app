@@ -456,8 +456,7 @@ HEALTH GOAL (hard constraint): ${healthGoals}. This is not optional — every me
 Do not combine ingredients or techniques from different culinary traditions within a single dish unless the user has explicitly asked for fusion in their week context. A dish may be Indian or Italian or Mexican — not all three. When in doubt, keep the dish within one cuisine.
 
 Pantry items without quantities: treat proteins and fresh vegetables as available for one meal only unless the user specifies a quantity. Pantry staples — spices, oils, canned goods, dry grains — are assumed abundant and may appear in multiple meals.
-
-CARB VARIETY (hard constraint): Before returning your response, count how many times each carb_base value appears across all meals. No single carb_base (e.g. "rice", "roti", "oats", "bread", "granola", "pasta") may appear in more than 2 meals in the same plan. If any carb_base appears 3 or more times, revise those later meals to use a different carbohydrate — choose from alternatives that complement the protein and cuisine. This check is mandatory and must be done before you output the JSON.`
+`
 
   const userPrompt = `Generate a meal plan with ${totalSlots} total meals for the week starting ${startDate}.
 
