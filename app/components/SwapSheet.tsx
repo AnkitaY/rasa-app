@@ -17,42 +17,81 @@ interface Alternative {
   prep_ahead: unknown[]
 }
 
-type ReasonKey = 'missing_ingredient' | 'no_time' | 'something_else'
+type ReasonKey = 'forgot_to_prep' | 'no_time' | 'not_feeling_it' | 'missing_ingredient'
 
 type Step = 'reason' | 'loading' | 'alternatives' | 'custom'
 
 interface SwapSheetProps {
-  meal: { id: string; recipe_name: string }
+  meal: { id: string; recipe_name: string; meal_type?: string }
   open: boolean
   onClose: () => void
   onSwapped: (newName: string) => void
+  isPrepAhead?: boolean
+  isToday?: boolean
 }
 
-// ── Reason options ────────────────────────────────────────────────────────────
+// ── Reason config ─────────────────────────────────────────────────────────────
 
-const REASONS: { key: ReasonKey; emoji: string; label: string }[] = [
-  { key: 'missing_ingredient', emoji: '🧅', label: 'Missing an ingredient' },
-  { key: 'no_time',            emoji: '⏱',  label: 'No time tonight' },
-  { key: 'something_else',     emoji: '✏️', label: 'Something else' },
+interface ReasonConfig {
+  key: ReasonKey
+  label: string
+  helperText: string
+  prepAheadAndDayOf?: boolean
+}
+
+const ALL_REASONS: ReasonConfig[] = [
+  {
+    key: 'forgot_to_prep',
+    label: 'Forgot to prep',
+    helperText: "We'll find something you can make right now, no prep needed.",
+    prepAheadAndDayOf: true,
+  },
+  {
+    key: 'no_time',
+    label: 'No time right now',
+    helperText: "We'll keep it quick.",
+  },
+  {
+    key: 'not_feeling_it',
+    label: 'Not feeling it',
+    helperText: 'Different mood, same time budget.',
+  },
+  {
+    key: 'missing_ingredient',
+    label: 'Missing an ingredient',
+    helperText: '',
+  },
 ]
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function SwapSheet({ meal, open, onClose, onSwapped }: SwapSheetProps) {
+export default function SwapSheet({
+  meal,
+  open,
+  onClose,
+  onSwapped,
+  isPrepAhead = false,
+  isToday = false,
+}: SwapSheetProps) {
   const [step, setStep] = useState<Step>('reason')
   const [reason, setReason] = useState<ReasonKey | null>(null)
-  const [ingredient, setIngredient] = useState('')
-  const [freeText, setFreeText] = useState('')
+  const [missingIngredient, setMissingIngredient] = useState('')
+  const [showIngredientError, setShowIngredientError] = useState(false)
   const [customRequest, setCustomRequest] = useState('')
   const [alternatives, setAlternatives] = useState<Alternative[]>([])
   const [applyingIdx, setApplyingIdx] = useState<number | null>(null)
   const [error, setError] = useState('')
 
+  const visibleReasons = ALL_REASONS.filter(r => {
+    if (r.prepAheadAndDayOf && !(isPrepAhead && isToday)) return false
+    return true
+  })
+
   function reset() {
     setStep('reason')
     setReason(null)
-    setIngredient('')
-    setFreeText('')
+    setMissingIngredient('')
+    setShowIngredientError(false)
     setCustomRequest('')
     setAlternatives([])
     setApplyingIdx(null)
@@ -66,8 +105,15 @@ export default function SwapSheet({ meal, open, onClose, onSwapped }: SwapSheetP
 
   async function fetchAlternatives(customText?: string) {
     if (!reason) return
+
+    if (reason === 'missing_ingredient' && !missingIngredient.trim() && !customText) {
+      setShowIngredientError(true)
+      return
+    }
+
     setStep('loading')
     setError('')
+    setShowIngredientError(false)
 
     try {
       const res = await fetch('/api/meals/swap', {
@@ -76,8 +122,9 @@ export default function SwapSheet({ meal, open, onClose, onSwapped }: SwapSheetP
         body: JSON.stringify({
           meal_id: meal.id,
           reason,
-          ingredient: ingredient.trim() || undefined,
-          free_text: customText ?? (freeText.trim() || undefined),
+          ingredient: reason === 'missing_ingredient' ? missingIngredient.trim() : undefined,
+          free_text: customText ?? undefined,
+          meal_type: meal.meal_type,
         }),
       })
       const data = await res.json()
@@ -108,23 +155,17 @@ export default function SwapSheet({ meal, open, onClose, onSwapped }: SwapSheetP
     }
   }
 
-  const canProceed = !!reason && (
-    reason !== 'missing_ingredient' || true // ingredient is optional
-  )
-
   return (
     <DialogPrimitive.Root
       open={open}
       onOpenChange={isOpen => { if (!isOpen) handleClose() }}
     >
       <DialogPrimitive.Portal>
-        {/* Scrim */}
         <DialogPrimitive.Backdrop
           className="fixed inset-0 z-40"
           style={{ backgroundColor: 'rgba(0,0,0,0.35)' }}
         />
 
-        {/* Bottom sheet */}
         <DialogPrimitive.Popup
           className="fixed bottom-0 left-0 right-0 z-50 bg-p1-card rounded-t-3xl px-5 pt-4 pb-10 max-h-[88vh] overflow-y-auto outline-none"
           style={{ animation: 'swapSlideUp 0.28s cubic-bezier(0.32, 0.72, 0, 1)' }}
@@ -136,7 +177,6 @@ export default function SwapSheet({ meal, open, onClose, onSwapped }: SwapSheetP
             }
           `}</style>
 
-          {/* Drag handle */}
           <div className="flex justify-center mb-5">
             <div className="w-10 h-1 rounded-full bg-p1-border" />
           </div>
@@ -148,63 +188,68 @@ export default function SwapSheet({ meal, open, onClose, onSwapped }: SwapSheetP
                 Swap {meal.recipe_name}?
               </DialogPrimitive.Title>
               <p className="text-sm text-p1-brown font-ui mb-6">
-                What&apos;s not working tonight?
+                Tell us why — it helps us find the right replacement.
               </p>
 
               <div className="space-y-2.5 mb-5">
-                {REASONS.map(r => (
-                  <button
-                    key={r.key}
-                    onClick={() => setReason(r.key)}
-                    className={cn(
-                      'w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border-2 text-left transition-all',
-                      reason === r.key
-                        ? 'border-p1-terra bg-p1-terra-lt'
-                        : 'border-p1-border bg-p1-card'
+                {visibleReasons.map(r => (
+                  <div key={r.key}>
+                    <button
+                      onClick={() => {
+                        setReason(r.key)
+                        setShowIngredientError(false)
+                      }}
+                      className={cn(
+                        'w-full flex items-start gap-3 px-4 py-3.5 rounded-2xl border-2 text-left transition-all',
+                        reason === r.key
+                          ? 'border-p1-terra bg-p1-terra-lt'
+                          : 'border-p1-border bg-p1-card'
+                      )}
+                    >
+                      <div className="flex-1">
+                        <p className={cn(
+                          'text-sm font-ui font-semibold',
+                          reason === r.key ? 'text-p1-terra' : 'text-p1-dark'
+                        )}>
+                          {r.label}
+                        </p>
+                        {r.helperText && reason === r.key && (
+                          <p className="text-xs font-ui text-p1-brown mt-0.5">
+                            {r.helperText}
+                          </p>
+                        )}
+                      </div>
+                    </button>
+
+                    {/* Missing ingredient free text — inline, required */}
+                    {r.key === 'missing_ingredient' && reason === 'missing_ingredient' && (
+                      <div className="mt-2.5 space-y-1">
+                        <label className="block text-xs font-ui font-semibold text-p1-brown uppercase tracking-wider">
+                          What ingredient do you need to skip?
+                        </label>
+                        <input
+                          type="text"
+                          className={cn(
+                            'w-full rounded-xl border bg-p1-card px-4 py-3 text-sm font-ui text-p1-dark placeholder:text-p1-brown/40 focus:outline-none transition-colors',
+                            showIngredientError ? 'border-red-400' : 'border-p1-border focus:border-p1-terra'
+                          )}
+                          placeholder="What are you missing?"
+                          value={missingIngredient}
+                          onChange={e => {
+                            setMissingIngredient(e.target.value)
+                            if (e.target.value.trim()) setShowIngredientError(false)
+                          }}
+                        />
+                        {showIngredientError && (
+                          <p className="text-xs text-red-600 font-ui">
+                            Tell us what&apos;s missing so we can work around it.
+                          </p>
+                        )}
+                      </div>
                     )}
-                  >
-                    <span className="text-xl">{r.emoji}</span>
-                    <span className={cn(
-                      'text-sm font-ui font-semibold',
-                      reason === r.key ? 'text-p1-terra' : 'text-p1-dark'
-                    )}>
-                      {r.label}
-                    </span>
-                  </button>
+                  </div>
                 ))}
               </div>
-
-              {/* Conditional input: missing ingredient */}
-              {reason === 'missing_ingredient' && (
-                <div className="mb-5 space-y-1.5">
-                  <label className="text-xs font-ui font-semibold text-p1-brown uppercase tracking-wider">
-                    Which ingredient?{' '}
-                    <span className="font-normal normal-case text-p1-brown/60">(optional)</span>
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full rounded-xl border border-p1-border bg-p1-card px-4 py-3 text-sm font-ui text-p1-dark placeholder:text-p1-brown/40 focus:outline-none focus:border-p1-terra transition-colors"
-                    placeholder="e.g. coconut milk, paneer…"
-                    value={ingredient}
-                    onChange={e => setIngredient(e.target.value)}
-                  />
-                </div>
-              )}
-
-              {/* Conditional input: something else */}
-              {reason === 'something_else' && (
-                <div className="mb-5 space-y-1.5">
-                  <label className="text-xs font-ui font-semibold text-p1-brown uppercase tracking-wider">
-                    Tell us more
-                  </label>
-                  <textarea
-                    className="w-full min-h-[80px] rounded-xl border border-p1-border bg-p1-card px-4 py-3 text-sm font-ui text-p1-dark placeholder:text-p1-brown/40 focus:outline-none focus:border-p1-terra transition-colors resize-none"
-                    placeholder="Not feeling it tonight, want something lighter…"
-                    value={freeText}
-                    onChange={e => setFreeText(e.target.value)}
-                  />
-                </div>
-              )}
 
               {error && (
                 <p className="text-sm text-red-600 font-ui mb-4">{error}</p>
@@ -212,17 +257,17 @@ export default function SwapSheet({ meal, open, onClose, onSwapped }: SwapSheetP
 
               <button
                 onClick={() => fetchAlternatives()}
-                disabled={!canProceed}
+                disabled={!reason}
                 className="w-full py-4 rounded-xl bg-p1-terra text-white text-sm font-ui font-semibold tracking-wide disabled:opacity-40 transition-opacity active:opacity-80"
               >
-                Find alternatives →
+                Find a replacement
               </button>
 
               <button
                 onClick={handleClose}
                 className="w-full mt-3 py-3 text-sm font-ui text-p1-brown text-center"
               >
-                Keep it as is
+                Keep {meal.recipe_name}
               </button>
             </div>
           )}
@@ -243,7 +288,7 @@ export default function SwapSheet({ meal, open, onClose, onSwapped }: SwapSheetP
                 ))}
               </div>
               <p className="text-sm font-ui text-p1-brown text-center">
-                Finding alternatives that work with your pantry…
+                Finding the right replacement…
               </p>
               <style>{`
                 @keyframes swapBounce {
@@ -258,10 +303,10 @@ export default function SwapSheet({ meal, open, onClose, onSwapped }: SwapSheetP
           {step === 'alternatives' && (
             <div>
               <DialogPrimitive.Title className="text-lg font-ui font-bold text-p1-dark mb-1">
-                3 alternatives for tonight
+                Here are 3 options
               </DialogPrimitive.Title>
               <p className="text-sm text-p1-brown font-ui mb-6">
-                All work with what you have — no extra shopping.
+                All work with what you have — pick one to swap in.
               </p>
 
               <div className="space-y-3 mb-5">
@@ -294,16 +339,13 @@ export default function SwapSheet({ meal, open, onClose, onSwapped }: SwapSheetP
                 <p className="text-sm text-red-600 font-ui mb-4">{error}</p>
               )}
 
-              {/* Custom request */}
-              {step === 'alternatives' && (
-                <button
-                  onClick={() => setStep('custom')}
-                  className="w-full py-3.5 rounded-2xl font-ui text-sm font-medium text-p1-terra text-center"
-                  style={{ border: '1.5px dashed #C4522A' }}
-                >
-                  None of these work — let me type a request
-                </button>
-              )}
+              <button
+                onClick={() => setStep('custom')}
+                className="w-full py-3.5 rounded-2xl font-ui text-sm font-medium text-p1-terra text-center"
+                style={{ border: '1.5px dashed #C4522A' }}
+              >
+                None of these — let me describe what I want
+              </button>
 
               <button
                 onClick={() => setStep('reason')}
@@ -337,14 +379,14 @@ export default function SwapSheet({ meal, open, onClose, onSwapped }: SwapSheetP
                 disabled={!customRequest.trim()}
                 className="w-full py-4 rounded-xl bg-p1-terra text-white text-sm font-ui font-semibold tracking-wide disabled:opacity-40 transition-opacity active:opacity-80"
               >
-                Find these alternatives →
+                Find a replacement
               </button>
 
               <button
                 onClick={() => setStep('alternatives')}
                 className="w-full mt-3 py-3 text-sm font-ui text-p1-brown text-center"
               >
-                ← Back to alternatives
+                ← Back to options
               </button>
             </div>
           )}

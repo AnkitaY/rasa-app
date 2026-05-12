@@ -6,33 +6,49 @@ import Link from 'next/link'
 import { Settings } from 'lucide-react'
 import { getAnonId } from '@/lib/anon'
 import { cn } from '@/lib/utils'
+import SwapSheet from '@/app/components/SwapSheet'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
+const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const DAYS: string[] = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-const TODAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date().getDay()]
+const TODAY_ABBR = DAYS_OF_WEEK[new Date().getDay()]
+const TOMORROW_ABBR = DAYS_OF_WEEK[(new Date().getDay() + 1) % 7]
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+interface PrepAheadNew {
+  tonight: string
+  tomorrow: string
+}
 
 interface MealRow {
   id: string
   day: string
+  meal_type: 'breakfast' | 'brunch' | 'lunch' | 'dinner'
   recipe_name: string
+  reasoning: string | null
   cooked: boolean
   cooked_at: string | null
   verdict: 'loved' | 'ok' | 'skip' | null
   verdict_shown: boolean
   use_soon_priority: boolean
   recipe_id: string | null
-}
-
-interface TonightRecipe {
+  prep_ahead: unknown
+  assembly_time_mins: number | null
   cook_time_minutes: number | null
-  servings: number | null
-  prep_ahead: { task: string; time_sensitive: boolean }[] | null
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+function getPrepAhead(raw: unknown): PrepAheadNew | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const pa = raw as Record<string, unknown>
+  if (typeof pa.tonight === 'string' && typeof pa.tomorrow === 'string') {
+    return { tonight: pa.tonight, tomorrow: pa.tomorrow }
+  }
+  return null
+}
 
 function withinFeedbackWindow(cookedAt: string | null): boolean {
   if (!cookedAt) return false
@@ -44,6 +60,40 @@ function greeting(): string {
   if (h < 12) return 'Good morning'
   if (h < 17) return 'Good afternoon'
   return 'Good evening'
+}
+
+type HomeCardState =
+  | { type: 'active'; meal: MealRow; prepAhead: PrepAheadNew | null }
+  | { type: 'prep_reminder'; meal: MealRow; prepAhead: PrepAheadNew }
+  | { type: 'empty' }
+
+function computeHomeCard(meals: MealRow[], skipPrepReminder: boolean): HomeCardState {
+  // Today's uncooked meals — prep-ahead first, then by meal_type order
+  const todayUncooked = meals.filter(m => m.day === TODAY_ABBR && !m.cooked)
+  if (todayUncooked.length > 0) {
+    const sorted = [...todayUncooked].sort((a, b) => {
+      const aPA = !!getPrepAhead(a.prep_ahead)
+      const bPA = !!getPrepAhead(b.prep_ahead)
+      if (aPA && !bPA) return -1
+      if (!aPA && bPA) return 1
+      return 0
+    })
+    const meal = sorted[0]
+    return { type: 'active', meal, prepAhead: getPrepAhead(meal.prep_ahead) }
+  }
+
+  // Tomorrow's prep-ahead meal as a prep reminder (if not skipped)
+  if (!skipPrepReminder) {
+    const tomorrowPrep = meals.find(m =>
+      m.day === TOMORROW_ABBR && !m.cooked && !!getPrepAhead(m.prep_ahead)
+    )
+    if (tomorrowPrep) {
+      const prepAhead = getPrepAhead(tomorrowPrep.prep_ahead)!
+      return { type: 'prep_reminder', meal: tomorrowPrep, prepAhead }
+    }
+  }
+
+  return { type: 'empty' }
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -65,39 +115,57 @@ function SkeletonHome() {
   )
 }
 
-// ── Page ─────────────────────────────────────────────────────────────────────
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [meals, setMeals] = useState<MealRow[]>([])
-  const [tonightRecipe, setTonightRecipe] = useState<TonightRecipe | null>(null)
   const [feedbackDismissed, setFeedbackDismissed] = useState(false)
   const [verdictSent, setVerdictSent] = useState(false)
   const [sendingVerdict, setSendingVerdict] = useState(false)
+  const [markingCookedId, setMarkingCookedId] = useState<string | null>(null)
+  const [skipPrepReminder, setSkipPrepReminder] = useState(false)
+  const [swapMeal, setSwapMeal] = useState<MealRow | null>(null)
 
   useEffect(() => {
-    const anonId = getAnonId()
-
-    fetch(`/api/meals/current?anon_id=${encodeURIComponent(anonId)}`)
-      .then(r => r.json())
-      .then(async ({ meals: raw }) => {
-        const list: MealRow[] = raw ?? []
-        setMeals(list)
-
-        // Fetch recipe details for tonight's meal
-        const tonight = list.find(m => m.day === TODAY_ABBR && !m.cooked)
-        if (tonight?.recipe_id) {
-          const res = await fetch(`/api/recipes/${encodeURIComponent(tonight.recipe_id)}`)
-          if (res.ok) {
-            const { recipe } = await res.json()
-            if (recipe) setTonightRecipe(recipe)
-          }
-        }
-      })
-      .catch(() => {/* allow through */})
-      .finally(() => setLoading(false))
+    async function load() {
+      try {
+        const anonId = getAnonId()
+        const res = await fetch(`/api/meals/current?anon_id=${encodeURIComponent(anonId)}`)
+        const { meals: raw } = await res.json()
+        setMeals(raw ?? [])
+      } catch {
+        // allow through
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
   }, [])
+
+  async function handleMarkCooked(mealId: string) {
+    if (markingCookedId) return
+    setMarkingCookedId(mealId)
+    try {
+      const res = await fetch('/api/meals/cooked', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ meal_id: mealId }),
+      })
+      if (!res.ok) throw new Error()
+      setMeals(prev =>
+        prev.map(m => m.id === mealId
+          ? { ...m, cooked: true, cooked_at: new Date().toISOString() }
+          : m
+        )
+      )
+    } catch {
+      // allow through — user can retry
+    } finally {
+      setMarkingCookedId(null)
+    }
+  }
 
   async function sendVerdict(mealId: string, verdict: string | null, dismiss?: boolean) {
     if (sendingVerdict) return
@@ -109,7 +177,6 @@ export default function HomePage() {
         body: JSON.stringify({ meal_id: mealId, verdict, dismiss }),
       })
       setVerdictSent(true)
-      // Update local state
       setMeals(prev =>
         prev.map(m =>
           m.id === mealId
@@ -118,7 +185,7 @@ export default function HomePage() {
         )
       )
     } catch {
-      /* allow through */
+      // allow through
     } finally {
       setSendingVerdict(false)
     }
@@ -126,9 +193,25 @@ export default function HomePage() {
 
   if (loading) return <SkeletonHome />
 
-  // Derive display data
-  const tonightMeal = meals.find(m => m.day === TODAY_ABBR && !m.cooked) ?? null
   const hasPlan = meals.length > 0
+  const cardState = computeHomeCard(meals, skipPrepReminder)
+
+  // Narrow card state for TypeScript
+  const activeCard = cardState.type === 'active' ? cardState : null
+  const reminderCard = cardState.type === 'prep_reminder' ? cardState : null
+
+  // Derived active card values
+  const activeMeal = activeCard?.meal ?? null
+  const activePrepAhead = activeCard?.prepAhead ?? null
+  const activeOverline = activePrepAhead ? 'Ready to assemble' : "What's cooking"
+  const activeSubtitle = activePrepAhead
+    ? `Assemble in ${activeMeal?.assembly_time_mins ?? '?'} min`
+    : activeMeal?.reasoning ?? null
+  const activeTiming = activePrepAhead
+    ? `Prepped last night: ${activePrepAhead.tonight}`
+    : activeMeal?.cook_time_minutes
+      ? `${activeMeal.cook_time_minutes} min`
+      : null
 
   // Feedback candidate: cooked, no verdict, within 72h, not shown yet
   const feedbackMeal = !feedbackDismissed && !verdictSent
@@ -141,16 +224,31 @@ export default function HomePage() {
       ) ?? null
     : null
 
-  // Build a meal-status map for the week strip
+  // Week strip meal map
   const mealByDay: Record<string, MealRow> = {}
-  for (const m of meals) mealByDay[m.day] = m
-
-  // Time-sensitive prep note for hero card
-  const prepNote =
-    tonightRecipe?.prep_ahead?.find(p => p.time_sensitive)?.task ?? null
+  for (const m of meals) {
+    mealByDay[m.day] = m
+  }
 
   return (
     <main className="min-h-screen bg-p1-cream">
+
+      {/* Swap sheet */}
+      {swapMeal && (
+        <SwapSheet
+          meal={swapMeal}
+          open={!!swapMeal}
+          onClose={() => setSwapMeal(null)}
+          isPrepAhead={!!getPrepAhead(swapMeal.prep_ahead)}
+          isToday={swapMeal.day === TODAY_ABBR}
+          onSwapped={newName => {
+            setMeals(prev =>
+              prev.map(m => m.id === swapMeal.id ? { ...m, recipe_name: newName } : m)
+            )
+            setSwapMeal(null)
+          }}
+        />
+      )}
 
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className="px-5 pt-12 pb-5 flex items-center justify-between">
@@ -159,7 +257,7 @@ export default function HomePage() {
             {greeting()}
           </p>
           <h1 className="text-xl font-ui font-bold text-p1-dark mt-0.5">
-            {hasPlan ? 'Here\'s your week' : 'Ready to plan?'}
+            {hasPlan ? "Here's your week" : 'Ready to plan?'}
           </h1>
         </div>
         <button
@@ -222,94 +320,113 @@ export default function HomePage() {
           className="rounded-3xl px-5 py-6 min-h-[200px] flex flex-col justify-between"
           style={{ backgroundColor: '#C4522A' }}
         >
-          {tonightMeal ? (
+
+          {/* State A — Active meal */}
+          {activeMeal && (
             <>
               <div>
                 <p className="text-[11px] font-ui font-semibold uppercase tracking-widest text-white/70 mb-2">
-                  What&apos;s cooking tonight
+                  {activeOverline}
                 </p>
                 <h2 className="text-xl font-ui font-bold text-white leading-snug">
-                  {tonightMeal.recipe_name}
+                  {activeMeal.recipe_name}
                 </h2>
-
-                {/* Meta row */}
-                <div className="flex items-center gap-3 mt-2">
-                  {tonightRecipe?.cook_time_minutes && (
-                    <span className="text-xs font-ui text-white/80">
-                      ⏱ {tonightRecipe.cook_time_minutes} min
-                    </span>
-                  )}
-                  {tonightRecipe?.servings && (
-                    <span className="text-xs font-ui text-white/80">
-                      🍽 Serves {tonightRecipe.servings}
-                    </span>
-                  )}
-                  {tonightMeal.use_soon_priority && (
-                    <span className="text-[10px] font-ui font-semibold uppercase tracking-wider text-white/60">
-                      · Use soon
-                    </span>
-                  )}
-                </div>
-
-                {/* Prep-ahead note */}
-                {prepNote && (
-                  <div className="mt-3 px-3 py-2 rounded-xl bg-white/15">
-                    <p className="text-[11px] font-ui text-white/90 leading-relaxed">
-                      ⏰ Prep ahead: {prepNote}
-                    </p>
-                  </div>
+                {activeSubtitle && (
+                  <p className="mt-1.5 text-sm font-ui text-white/85 leading-snug">
+                    {activeSubtitle}
+                  </p>
+                )}
+                {activeTiming && (
+                  <p className="mt-1 text-xs font-ui text-white/70 leading-snug">
+                    {activeTiming}
+                  </p>
                 )}
               </div>
 
-              {/* CTA buttons */}
-              <div className="flex gap-2.5 mt-5">
-                {tonightMeal.recipe_id ? (
-                  <>
-                    <Link
-                      href={`/cook/${tonightMeal.recipe_id}`}
-                      className="flex-1 py-3 rounded-xl bg-white text-p1-terra text-sm font-ui font-bold text-center active:opacity-80"
-                    >
-                      Let&apos;s cook →
-                    </Link>
-                    <Link
-                      href={`/recipes/${tonightMeal.recipe_id}`}
-                      className="flex-1 py-3 rounded-xl bg-white/20 text-white text-sm font-ui font-semibold text-center active:opacity-80"
-                    >
-                      View full recipe
-                    </Link>
-                  </>
-                ) : (
-                  <Link
-                    href="/planner"
-                    className="flex-1 py-3 rounded-xl bg-white/20 text-white text-sm font-ui font-semibold text-center active:opacity-80"
+              {/* Three CTAs */}
+              <div className="mt-5 space-y-2.5">
+                <Link
+                  href={activeMeal.recipe_id ? `/cook/${activeMeal.recipe_id}` : '/planner'}
+                  className="block w-full py-3 rounded-xl bg-white text-p1-terra text-sm font-ui font-bold text-center active:opacity-80"
+                >
+                  Let&apos;s cook →
+                </Link>
+                <div className="flex gap-2.5">
+                  <button
+                    onClick={() => setSwapMeal(activeMeal)}
+                    className="flex-1 py-2.5 rounded-xl border border-white/40 text-white text-sm font-ui font-semibold text-center active:opacity-80"
                   >
-                    View plan
-                  </Link>
-                )}
+                    Swap
+                  </button>
+                  <button
+                    onClick={() => handleMarkCooked(activeMeal.id)}
+                    disabled={markingCookedId === activeMeal.id}
+                    className="flex-1 py-2.5 rounded-xl border border-p1-forest/60 text-white text-sm font-ui font-semibold text-center active:opacity-80 disabled:opacity-60"
+                  >
+                    {markingCookedId === activeMeal.id ? 'Saving…' : 'Mark as cooked ✓'}
+                  </button>
+                </div>
               </div>
             </>
-          ) : (
+          )}
+
+          {/* State B — Tomorrow's prep reminder */}
+          {reminderCard && (
             <>
               <div>
                 <p className="text-[11px] font-ui font-semibold uppercase tracking-widest text-white/70 mb-2">
-                  Tonight
+                  Tomorrow&apos;s plan
+                </p>
+                <h2 className="text-xl font-ui font-bold text-white leading-snug">
+                  Tomorrow: {reminderCard.meal.recipe_name}
+                </h2>
+                <p className="mt-1.5 text-sm font-ui text-white/85 leading-snug">
+                  Prep tonight: {reminderCard.prepAhead.tonight}
+                </p>
+                {reminderCard.meal.assembly_time_mins && (
+                  <p className="mt-1 text-xs font-ui text-white/70">
+                    Assemble in {reminderCard.meal.assembly_time_mins} min tomorrow
+                  </p>
+                )}
+              </div>
+              <div className="mt-5 space-y-2.5">
+                <Link
+                  href="/planner"
+                  className="block w-full py-3 rounded-xl bg-white text-p1-terra text-sm font-ui font-bold text-center active:opacity-80"
+                >
+                  Start prepping
+                </Link>
+                <button
+                  onClick={() => setSkipPrepReminder(true)}
+                  className="block w-full py-2.5 text-sm font-ui text-white/70 text-center"
+                >
+                  Skip tonight
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Empty state */}
+          {cardState.type === 'empty' && (
+            <>
+              <div>
+                <p className="text-[11px] font-ui font-semibold uppercase tracking-widest text-white/70 mb-2">
+                  All sorted
                 </p>
                 <h2 className="text-xl font-ui font-bold text-white">
-                  {hasPlan
-                    ? 'Nothing on the plan tonight'
-                    : 'Nothing planned right now'}
+                  {hasPlan ? "You're all sorted for now" : 'Nothing planned right now'}
                 </h2>
                 <p className="text-sm font-ui text-white/70 mt-1">
                   {hasPlan
-                    ? 'Free night — enjoy the break.'
-                    : 'Tell us what\'s in the kitchen and we\'ll sort the week.'}
+                    ? "Check back when it's time to cook — or head to the planner if you want to tweak the week."
+                    : "Tell us what's in the kitchen and we'll sort the week."}
                 </p>
               </div>
               <Link
-                href="/planner/generate"
-                className="mt-5 block py-3 rounded-xl bg-white text-p1-terra text-sm font-ui font-bold text-center active:opacity-80"
+                href={hasPlan ? '/planner' : '/planner/generate'}
+                className="mt-5 block py-3 rounded-xl border border-white/40 text-white text-sm font-ui font-semibold text-center active:opacity-80"
               >
-                {hasPlan ? 'Add to plan →' : 'Plan my week →'}
+                {hasPlan ? 'Go to planner' : 'Plan my week →'}
               </Link>
             </>
           )}
@@ -349,7 +466,6 @@ export default function HomePage() {
                     )}>
                       {day.slice(0, 1)}
                     </span>
-                    {/* Status dot */}
                     <span className={cn(
                       'w-1.5 h-1.5 rounded-full',
                       isToday ? 'bg-white/60'
@@ -364,7 +480,7 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* ── Quick actions (no plan state) ──────────────────────────────── */}
+        {/* ── Quick actions (no plan) ────────────────────────────────────── */}
         {!hasPlan && (
           <div className="grid grid-cols-2 gap-3 pt-2">
             <Link

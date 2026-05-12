@@ -3,8 +3,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 /**
  * GET /api/meals/current?anon_id=<uuid>
- * Returns the latest week_plan + its meals for the given anon_id.
- * Enriches each meal with recipe_id (looked up by recipe_name).
+ * Returns the latest week_plan + its meals (non-deleted) for the given anon_id.
+ * Enriches each meal with recipe_id, prep_ahead, assembly_time_mins, cook_time_minutes.
  */
 export async function GET(request: NextRequest) {
   const anon_id = request.nextUrl.searchParams.get('anon_id')
@@ -14,7 +14,6 @@ export async function GET(request: NextRequest) {
 
   const admin = createAdminClient()
 
-  // Latest week_plan for this anon_id
   const { data: weekPlan, error: wpError } = await admin
     .from('week_plans')
     .select('id, week_start_date, created_at')
@@ -31,11 +30,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ week_plan: null, meals: [] })
   }
 
-  // Meals for this plan
+  // Exclude soft-deleted meals
   const { data: meals, error: mealsError } = await admin
     .from('meals')
     .select('*')
     .eq('week_plan_id', weekPlan.id)
+    .is('deleted_at', null)
 
   if (mealsError) {
     return NextResponse.json({ error: 'Could not load meals.' }, { status: 500 })
@@ -43,27 +43,38 @@ export async function GET(request: NextRequest) {
 
   const mealList = meals ?? []
 
-  // Enrich with recipe_id — look up by name in recipes table
-  if (mealList.length > 0) {
-    const names = mealList.map((m: { recipe_name: string }) => m.recipe_name)
-    const { data: recipes } = await admin
-      .from('recipes')
-      .select('id, name')
-      .in('name', names)
-      .is('user_id', null)
-
-    const nameToId: Record<string, string> = {}
-    for (const r of recipes ?? []) {
-      nameToId[r.name] = r.id
-    }
-
-    const enriched = mealList.map((m: Record<string, unknown>) => ({
-      ...m,
-      recipe_id: nameToId[m.recipe_name as string] ?? null,
-    }))
-
-    return NextResponse.json({ week_plan: weekPlan, meals: enriched })
+  if (mealList.length === 0) {
+    return NextResponse.json({ week_plan: weekPlan, meals: mealList })
   }
 
-  return NextResponse.json({ week_plan: weekPlan, meals: mealList })
+  // Enrich with recipe data — look up by name
+  const names = mealList.map((m: { recipe_name: string }) => m.recipe_name)
+  const { data: recipes } = await admin
+    .from('recipes')
+    .select('id, name, prep_ahead, assembly_time_mins, cook_time_minutes')
+    .in('name', names)
+    .is('user_id', null)
+
+  const nameToRecipe: Record<string, {
+    id: string
+    prep_ahead: unknown
+    assembly_time_mins: number | null
+    cook_time_minutes: number | null
+  }> = {}
+  for (const r of recipes ?? []) {
+    nameToRecipe[r.name] = r
+  }
+
+  const enriched = mealList.map((m: Record<string, unknown>) => {
+    const recipe = nameToRecipe[m.recipe_name as string]
+    return {
+      ...m,
+      recipe_id: recipe?.id ?? null,
+      prep_ahead: recipe?.prep_ahead ?? null,
+      assembly_time_mins: recipe?.assembly_time_mins ?? null,
+      cook_time_minutes: recipe?.cook_time_minutes ?? null,
+    }
+  })
+
+  return NextResponse.json({ week_plan: weekPlan, meals: enriched })
 }

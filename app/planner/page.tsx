@@ -17,19 +17,21 @@ const DAY_LABELS: Record<string, string> = {
   Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday', Sun: 'Sunday',
 }
 
+const MEAL_TYPE_ORDER = ['breakfast', 'brunch', 'lunch', 'dinner']
+
 const TODAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date().getDay()]
 
-const VERDICT_LABELS: Record<string, string> = {
-  loved: 'Everyone loved it 🙌',
-  ok: 'It was fine 🤷',
-  skip: 'Won\'t make again',
-}
-
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+interface PrepAheadNew {
+  tonight: string
+  tomorrow: string
+}
 
 interface MealWithRecipe {
   id: string
   day: string
+  meal_type: 'breakfast' | 'brunch' | 'lunch' | 'dinner'
   recipe_name: string
   reasoning: string | null
   cooked: boolean
@@ -37,6 +39,10 @@ interface MealWithRecipe {
   verdict: 'loved' | 'ok' | 'skip' | null
   use_soon_priority: boolean
   recipe_id: string | null
+  prep_ahead: unknown
+  assembly_time_mins: number | null
+  cook_time_minutes: number | null
+  removed?: boolean
 }
 
 interface WeekPlanMeta {
@@ -54,30 +60,54 @@ function formatDateRange(weekStart: string): string {
   return `${start.toLocaleDateString('en-GB', opts)} – ${end.toLocaleDateString('en-GB', opts)}`
 }
 
+function getPrepAhead(raw: unknown): PrepAheadNew | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const pa = raw as Record<string, unknown>
+  if (typeof pa.tonight === 'string' && typeof pa.tomorrow === 'string') {
+    return { tonight: pa.tonight, tomorrow: pa.tomorrow }
+  }
+  return null
+}
+
+function sectionLabel(mealType: string): string {
+  if (mealType === 'dinner') return 'DINNERS THIS WEEK'
+  return `${mealType.toUpperCase()} THIS WEEK`
+}
+
+// Day-of = today or past (within the same week)
+function isDayOf(mealDay: string): boolean {
+  return (DAY_ORDER[mealDay] ?? 99) <= (DAY_ORDER[TODAY_ABBR] ?? 0)
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function PlannerPage() {
   const [meals, setMeals] = useState<MealWithRecipe[]>([])
   const [weekPlan, setWeekPlan] = useState<WeekPlanMeta | null>(null)
   const [loading, setLoading] = useState(true)
-  const [cookingId, setCookingId] = useState<string | null>(null)
+  const [removingId, setRemovingId] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [swapMeal, setSwapMeal] = useState<MealWithRecipe | null>(null)
 
   useEffect(() => {
-    const anonId = getAnonId()
-    fetch(`/api/meals/current?anon_id=${encodeURIComponent(anonId)}`)
-      .then(r => r.json())
-      .then(({ week_plan, meals: raw }) => {
+    async function load() {
+      try {
+        const anonId = getAnonId()
+        const res = await fetch(`/api/meals/current?anon_id=${encodeURIComponent(anonId)}`)
+        const { week_plan, meals: raw } = await res.json()
         setWeekPlan(week_plan ?? null)
         const sorted = (raw ?? []).sort(
           (a: MealWithRecipe, b: MealWithRecipe) =>
             (DAY_ORDER[a.day] ?? 99) - (DAY_ORDER[b.day] ?? 99)
         )
         setMeals(sorted)
-      })
-      .catch(() => {/* allow through */})
-      .finally(() => setLoading(false))
+      } catch {
+        // allow through
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
   }, [])
 
   function showToast(msg: string) {
@@ -85,35 +115,25 @@ export default function PlannerPage() {
     setTimeout(() => setToast(null), 2500)
   }
 
-  async function handleMarkCooked(meal: MealWithRecipe) {
-    if (meal.cooked || cookingId) return
-    setCookingId(meal.id)
-
+  async function handleRemove(meal: MealWithRecipe) {
+    if (removingId) return
+    setRemovingId(meal.id)
     try {
-      const res = await fetch('/api/meals/cooked', {
+      const res = await fetch('/api/meals/remove', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ meal_id: meal.id }),
       })
       if (!res.ok) throw new Error()
-
-      // Optimistic update
-      setMeals(prev =>
-        prev.map(m =>
-          m.id === meal.id
-            ? { ...m, cooked: true, cooked_at: new Date().toISOString() }
-            : m
-        )
-      )
-      showToast('Nice work. Dinner\'s done. 🍽')
+      setMeals(prev => prev.map(m => m.id === meal.id ? { ...m, removed: true } : m))
     } catch {
       showToast('Hmm, something went wrong. Try again?')
     } finally {
-      setCookingId(null)
+      setRemovingId(null)
     }
   }
 
-  // ── Skeleton ─────────────────────────────────────────────────────────────────
+  // ── Skeleton ──────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
@@ -131,7 +151,7 @@ export default function PlannerPage() {
     )
   }
 
-  // ── Empty state ───────────────────────────────────────────────────────────────
+  // ── Empty state ───────────────────────────────────────────────────────────
 
   if (!weekPlan || meals.length === 0) {
     return (
@@ -142,9 +162,7 @@ export default function PlannerPage() {
         <div className="flex-1 flex flex-col items-center justify-center px-8 pb-32 text-center gap-5">
           <span className="text-5xl">📅</span>
           <div>
-            <p className="text-base font-ui font-semibold text-p1-dark">
-              Nothing planned yet
-            </p>
+            <p className="text-base font-ui font-semibold text-p1-dark">Nothing planned yet</p>
             <p className="text-sm text-p1-brown font-ui mt-1">
               Your recipe bank fills up the moment you plan your first week.
             </p>
@@ -160,9 +178,15 @@ export default function PlannerPage() {
     )
   }
 
-  const uncooked = meals.filter(m => !m.cooked)
+  // Group all meals by meal_type (including removed — shown as empty slots)
+  const mealsByType: Record<string, MealWithRecipe[]> = {}
+  for (const m of meals) {
+    if (!mealsByType[m.meal_type]) mealsByType[m.meal_type] = []
+    mealsByType[m.meal_type].push(m)
+  }
+  const orderedTypes = MEAL_TYPE_ORDER.filter(t => mealsByType[t]?.length > 0)
 
-  // ── Main view ─────────────────────────────────────────────────────────────────
+  // ── Main view ─────────────────────────────────────────────────────────────
 
   return (
     <main className="min-h-screen bg-p1-cream">
@@ -175,22 +199,12 @@ export default function PlannerPage() {
       )}
 
       {/* Header */}
-      <div className="px-5 pt-12 pb-5 flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-ui font-bold text-p1-dark">This Week</h1>
-          {weekPlan.week_start_date && (
-            <p className="mt-0.5 text-sm text-p1-brown font-ui">
-              {formatDateRange(weekPlan.week_start_date)}
-            </p>
-          )}
-        </div>
-        {uncooked.length > 0 && (
-          <Link
-            href="/planner/generate?mode=regen"
-            className="text-xs font-ui font-medium text-p1-terra pt-1.5"
-          >
-            Rethink remaining →
-          </Link>
+      <div className="px-5 pt-12 pb-5">
+        <h1 className="text-2xl font-ui font-bold text-p1-dark">This Week</h1>
+        {weekPlan.week_start_date && (
+          <p className="mt-0.5 text-sm text-p1-brown font-ui">
+            {formatDateRange(weekPlan.week_start_date)}
+          </p>
         )}
       </div>
 
@@ -200,108 +214,179 @@ export default function PlannerPage() {
           meal={swapMeal}
           open={!!swapMeal}
           onClose={() => setSwapMeal(null)}
+          isPrepAhead={!!getPrepAhead(swapMeal.prep_ahead)}
+          isToday={swapMeal.day === TODAY_ABBR}
           onSwapped={newName => {
             setMeals(prev =>
-              prev.map(m =>
-                m.id === swapMeal.id
-                  ? { ...m, recipe_name: newName, swapped_from: m.recipe_name }
-                  : m
-              )
+              prev.map(m => m.id === swapMeal.id ? { ...m, recipe_name: newName } : m)
             )
             setSwapMeal(null)
-            showToast('Done — plan updated. 🔄')
+            showToast('Plan updated.')
           }}
         />
       )}
 
-      {/* Meal cards */}
-      <div className="px-5 space-y-3 pb-10">
-        {meals.map(meal => {
-          const isToday = meal.day === TODAY_ABBR
-          const isCooking = cookingId === meal.id
+      {/* Meal sections */}
+      <div className="px-5 pb-10 space-y-8">
+        {orderedTypes.map(mealType => {
+          const typeMeals = mealsByType[mealType]
 
-          if (meal.cooked) {
-            // ── Cooked card ─────────────────────────────────────────────────
-            return (
-              <div
-                key={meal.id}
-                className="rounded-2xl bg-p1-forest-lt border border-p1-forest/20 px-4 py-4"
-              >
-                <p className="text-[11px] font-ui font-semibold text-p1-forest uppercase tracking-wider mb-1">
-                  {DAY_LABELS[meal.day] ?? meal.day} · Cooked ✓
-                </p>
-                <p className="text-base font-ui font-semibold text-p1-forest leading-snug">
-                  {meal.recipe_name}
-                </p>
-                {meal.verdict && (
-                  <p className="mt-1.5 text-xs font-ui text-p1-forest/70">
-                    {VERDICT_LABELS[meal.verdict] ?? meal.verdict}
-                  </p>
-                )}
-              </div>
-            )
-          }
-
-          // ── Active card ───────────────────────────────────────────────────
           return (
-            <div
-              key={meal.id}
-              className={cn(
-                'rounded-2xl bg-p1-card shadow-sm overflow-hidden',
-                meal.use_soon_priority && 'border-l-[3px] border-p1-terra'
-              )}
-            >
-              <div className="px-4 pt-4 pb-3">
-                {/* Day label */}
-                <p className={cn(
-                  'text-[11px] font-ui font-semibold uppercase tracking-wider mb-1',
-                  isToday ? 'text-p1-terra' : 'text-p1-brown'
-                )}>
-                  {isToday ? 'Tonight — ' : ''}{DAY_LABELS[meal.day] ?? meal.day}
-                  {meal.use_soon_priority && (
-                    <span className="ml-1.5 text-p1-terra">· Use soon</span>
-                  )}
+            <div key={mealType}>
+              {/* Section header */}
+              <div className="flex items-center gap-3 mb-3">
+                <div className="h-px flex-1 bg-p1-border" />
+                <p className="text-[11px] font-ui font-bold text-p1-brown uppercase tracking-widest whitespace-nowrap">
+                  {sectionLabel(mealType)}
                 </p>
-
-                {/* Recipe name */}
-                <p className="text-base font-ui font-bold text-p1-dark leading-snug">
-                  {meal.recipe_name}
-                </p>
-
-                {/* Reasoning */}
-                {meal.reasoning && (
-                  <p className="mt-1.5 text-sm font-ui text-p1-brown italic leading-relaxed">
-                    {meal.reasoning}
-                  </p>
-                )}
+                <div className="h-px flex-1 bg-p1-border" />
               </div>
 
-              {/* Action row */}
-              <div className="flex items-center gap-2 px-4 pb-4">
-                <button
-                  onClick={() => handleMarkCooked(meal)}
-                  disabled={!!cookingId}
-                  className="flex-1 py-2.5 rounded-xl bg-p1-terra text-white text-xs font-ui font-semibold tracking-wide disabled:opacity-50 transition-opacity active:opacity-80"
-                >
-                  {isCooking ? 'Saving…' : 'Mark as cooked'}
-                </button>
+              {/* Cards for this type */}
+              <div className="space-y-3">
+                {typeMeals.map(meal => {
+                  const prepAhead = getPrepAhead(meal.prep_ahead)
+                  const isPrepAheadMeal = !!prepAhead
+                  const dayOf = isDayOf(meal.day)
+                  const isToday = meal.day === TODAY_ABBR
 
-                <button
-                  onClick={() => setSwapMeal(meal)}
-                  className="px-4 py-2.5 rounded-xl border border-p1-border bg-p1-card text-xs font-ui font-medium text-p1-dark active:opacity-70"
-                >
-                  Swap
-                </button>
+                  // ── Removed (empty slot) ─────────────────────────────
+                  if (meal.removed) {
+                    return (
+                      <div
+                        key={meal.id}
+                        className="rounded-2xl bg-p1-surface px-4 py-4"
+                      >
+                        <p className="text-[11px] font-ui font-semibold text-p1-brown uppercase tracking-wider mb-1">
+                          {DAY_LABELS[meal.day] ?? meal.day}
+                        </p>
+                        <p className="text-sm font-ui text-p1-brown">
+                          Available — nothing planned here
+                        </p>
+                      </div>
+                    )
+                  }
 
-                {/* Recipe link */}
-                {meal.recipe_id && (
-                  <Link
-                    href={`/recipes/${meal.recipe_id}`}
-                    className="px-4 py-2.5 rounded-xl border border-p1-border bg-p1-card text-xs font-ui font-medium text-p1-dark active:opacity-70"
-                  >
-                    Recipe
-                  </Link>
-                )}
+                  // ── Cooked card ───────────────────────────────────────
+                  if (meal.cooked) {
+                    return (
+                      <div
+                        key={meal.id}
+                        className="rounded-2xl bg-p1-forest-lt border border-p1-forest/20 px-4 py-4"
+                      >
+                        <p className="text-[11px] font-ui font-semibold text-p1-forest uppercase tracking-wider mb-1">
+                          {DAY_LABELS[meal.day] ?? meal.day}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-base font-ui font-semibold text-p1-forest leading-snug">
+                            {meal.recipe_name}
+                          </p>
+                          <span className="text-xs font-ui text-p1-forest">✓ cooked</span>
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  // ── Active card — prep-ahead ──────────────────────────
+                  if (isPrepAheadMeal) {
+                    const subtitle = dayOf
+                      ? `This morning: ${prepAhead.tomorrow}`
+                      : `Prep tonight: ${prepAhead.tonight}`
+
+                    return (
+                      <div
+                        key={meal.id}
+                        className={cn(
+                          'rounded-2xl bg-p1-card shadow-sm overflow-hidden',
+                          isToday && 'border-l-[3px] border-p1-terra'
+                        )}
+                      >
+                        <div className="px-4 pt-4 pb-3">
+                          <p className={cn(
+                            'text-[11px] font-ui font-semibold uppercase tracking-wider mb-1',
+                            isToday ? 'text-p1-terra' : 'text-p1-brown'
+                          )}>
+                            {DAY_LABELS[meal.day] ?? meal.day}
+                          </p>
+                          <p className="text-base font-ui font-bold text-p1-dark leading-snug">
+                            {meal.recipe_name}
+                          </p>
+                          <p className="mt-1.5 text-sm font-ui text-p1-brown leading-relaxed">
+                            {subtitle}
+                          </p>
+                          {meal.assembly_time_mins && (
+                            <p className="mt-1 text-xs font-ui text-p1-brown">
+                              Assemble in {meal.assembly_time_mins} min
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 px-4 pb-4">
+                          <button
+                            onClick={() => setSwapMeal(meal)}
+                            className="flex-1 py-2.5 rounded-xl border border-p1-border bg-p1-card text-xs font-ui font-medium text-p1-dark active:opacity-70"
+                          >
+                            Swap
+                          </button>
+                          <button
+                            onClick={() => handleRemove(meal)}
+                            disabled={removingId === meal.id}
+                            className="flex-1 py-2.5 rounded-xl border border-p1-border bg-p1-card text-xs font-ui font-medium text-p1-dark active:opacity-70 disabled:opacity-50"
+                          >
+                            {removingId === meal.id ? 'Removing…' : 'Remove'}
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  // ── Active card — non-prep-ahead ──────────────────────
+                  return (
+                    <div
+                      key={meal.id}
+                      className={cn(
+                        'rounded-2xl bg-p1-card shadow-sm overflow-hidden',
+                        meal.use_soon_priority && 'border-l-[3px] border-p1-terra'
+                      )}
+                    >
+                      <div className="px-4 pt-4 pb-3">
+                        <p className={cn(
+                          'text-[11px] font-ui font-semibold uppercase tracking-wider mb-1',
+                          isToday ? 'text-p1-terra' : 'text-p1-brown'
+                        )}>
+                          {DAY_LABELS[meal.day] ?? meal.day}
+                        </p>
+                        <p className="text-base font-ui font-bold text-p1-dark leading-snug">
+                          {meal.recipe_name}
+                        </p>
+                        {meal.reasoning && (
+                          <p className="mt-1.5 text-sm font-ui text-p1-brown italic leading-relaxed">
+                            {meal.reasoning}
+                          </p>
+                        )}
+                        {meal.cook_time_minutes && (
+                          <p className="mt-1 text-xs font-ui text-p1-brown">
+                            {meal.cook_time_minutes} min
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 px-4 pb-4">
+                        <button
+                          onClick={() => setSwapMeal(meal)}
+                          className="flex-1 py-2.5 rounded-xl border border-p1-border bg-p1-card text-xs font-ui font-medium text-p1-dark active:opacity-70"
+                        >
+                          Swap
+                        </button>
+                        <button
+                          onClick={() => handleRemove(meal)}
+                          disabled={removingId === meal.id}
+                          className="flex-1 py-2.5 rounded-xl border border-p1-border bg-p1-card text-xs font-ui font-medium text-p1-dark active:opacity-70 disabled:opacity-50"
+                        >
+                          {removingId === meal.id ? 'Removing…' : 'Remove'}
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )

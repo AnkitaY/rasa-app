@@ -27,11 +27,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON.' }, { status: 400 })
   }
 
-  const { meal_id, reason, ingredient, free_text } = body as {
+  const { meal_id, reason, ingredient, free_text, meal_type } = body as {
     meal_id: string
     reason: string
     ingredient?: string
     free_text?: string
+    meal_type?: string
   }
 
   if (!meal_id) {
@@ -40,10 +41,9 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient()
 
-  // Load meal + week_plan in parallel
   const { data: meal } = await admin
     .from('meals')
-    .select('recipe_name, week_plan_id')
+    .select('recipe_name, week_plan_id, meal_type')
     .eq('id', meal_id)
     .single()
 
@@ -57,51 +57,65 @@ export async function POST(request: NextRequest) {
     .eq('id', meal.week_plan_id)
     .single()
 
-  // Load user prefs for context
   const { data: prefs } = weekPlan?.anon_id
     ? await admin
         .from('user_preferences')
-        .select('primary_cuisine, who_cooking_for, dietary_rules, weeknight_budget, skill_level')
+        .select('primary_cuisine, who_cooking_for, dietary_rules, weeknight_budget, skill_level, meal_prefs')
         .eq('anon_id', weekPlan.anon_id)
         .maybeSingle()
     : { data: null }
 
+  const effectiveMealType = (meal_type ?? meal.meal_type ?? 'dinner') as string
   const pantryText = weekPlan?.pantry_snapshot ?? 'Not specified'
 
-  // Build reason description
-  let reasonContext = reason
-  if (reason === 'missing_ingredient' && ingredient) {
-    reasonContext = `missing ingredient: ${ingredient}`
-  } else if (reason === 'no_time') {
-    reasonContext = 'no time tonight — needs to be quick (under 25 min)'
-  } else if (free_text) {
-    reasonContext = free_text
+  // Build reason-specific AI instruction
+  let reasonInstruction: string
+  switch (reason) {
+    case 'forgot_to_prep':
+      reasonInstruction = `The user forgot to prep ahead. Suggest ONLY zero-prep alternatives — eggs, yoghurt bowls, overnight oats, toast-based meals. Nothing requiring advance work or prep_ahead steps. Target: prep_friendly recipes, assembly_time_mins ≤ 15 min.`
+      break
+    case 'no_time':
+      reasonInstruction = `The user has no time. Suggest the fastest possible options for ${effectiveMealType}. Target: ≤ 20 min total (prep + cook or assemble). Prioritise low assembly_time_mins.`
+      break
+    case 'not_feeling_it':
+      reasonInstruction = `The user is not feeling the current meal. Suggest a different mood/flavour profile — same approximate time budget, different cuisine or texture. Use week context and cuisine preferences to vary.`
+      break
+    case 'missing_ingredient':
+      reasonInstruction = ingredient
+        ? `The user is missing: ${ingredient}. Suggest meals that do NOT require ${ingredient}. If the original can be adapted without it, note that option first before a full replacement.`
+        : `The user is missing an ingredient. Suggest versatile meals that work with common pantry staples.`
+      break
+    default:
+      reasonInstruction = free_text ?? 'Suggest a good alternative for this meal.'
   }
 
   const servings = prefs?.who_cooking_for === 'family_young_kids' ? 4
     : prefs?.who_cooking_for === 'family_teens' ? 5 : 2
 
-  const timeLine = reason === 'no_time'
-    ? 'All alternatives must be under 25 minutes.'
+  const mealTypeLine = effectiveMealType === 'brunch' || effectiveMealType === 'breakfast'
+    ? `This is a ${effectiveMealType} meal — high protein, assembles quickly (≤ 30 min). Must include a clear protein source.`
+    : `This is a ${effectiveMealType} meal — complete meal (protein + carb + veg).`
+
+  const timeLine = reason === 'no_time' || reason === 'forgot_to_prep'
+    ? 'All alternatives must be under 20 minutes.'
     : prefs?.weeknight_budget === 'under_30'
-    ? 'Keep cook times under 30 minutes.'
+    ? 'Keep cook/assembly times under 30 minutes.'
     : 'Aim for 30–45 minutes.'
 
-  const prompt = `You are swapping a dinner recipe. Generate exactly 3 alternative complete-meal dinner recipes.
+  const prompt = `You are swapping a ${effectiveMealType} recipe. Generate exactly 3 alternative recipes.
 
 CURRENT MEAL BEING SWAPPED: ${meal.recipe_name}
-REASON: ${reasonContext}
+REASON: ${reasonInstruction}
 
 WHAT THEY HAVE (pantry):
 ${pantryText}
 
 CONSTRAINTS:
+- ${mealTypeLine}
 - ${timeLine}
 - Dietary rules: ${prefs?.dietary_rules ?? 'none'}
 - Cooking for: ${prefs?.who_cooking_for ?? 'just_me'} (servings: ${servings})
-- Skill: ${prefs?.skill_level ?? 'home cook'}
 - Each alternative must use a DIFFERENT main protein from "${meal.recipe_name}"
-- Each must be a COMPLETE MEAL (protein + carb + veg in one dish)
 - Must work with the pantry above — no extra shopping needed
 - Reasoning is one casual sentence, NOT starting with "This dish"
 
@@ -173,16 +187,15 @@ export async function PATCH(request: NextRequest) {
 
   const admin = createAdminClient()
 
-  // Get old recipe name before updating
   const { data: existingMeal } = await admin
     .from('meals')
-    .select('recipe_name')
+    .select('recipe_name, meal_type')
     .eq('id', meal_id)
     .single()
 
   const oldName = existingMeal?.recipe_name ?? null
+  const mealType = existingMeal?.meal_type ?? 'dinner'
 
-  // Upsert the new recipe into the recipe bank
   const { data: existingRecipe } = await admin
     .from('recipes')
     .select('id')
@@ -195,7 +208,7 @@ export async function PATCH(request: NextRequest) {
       user_id: null,
       name: chosen.name,
       cuisine_type: chosen.cuisine_type,
-      meal_type: 'dinner',
+      meal_type: mealType,
       cook_time_minutes: chosen.cook_time_minutes,
       servings: chosen.servings,
       ingredients: chosen.ingredients,
@@ -213,7 +226,6 @@ export async function PATCH(request: NextRequest) {
     })
   }
 
-  // Update the meal
   const { data: updatedMeal, error } = await admin
     .from('meals')
     .update({

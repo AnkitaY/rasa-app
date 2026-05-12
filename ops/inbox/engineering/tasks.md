@@ -123,32 +123,25 @@ PRD: docs/prd/feat-001-brunch-meal-type.md — read fully before starting.
         [ ] Prep-ahead meals have prep_ahead populated; validated post-generation
         [ ] Non-prep-ahead meals not required to have prep_ahead
 
-- [ ] FEAT-001c: Planner display — meal type sections + Remove meal | Priority: HIGH | From: pm-agent 2026-05-11
-  - Group meals by meal_type in planner view (prep-ahead types first)
-  - Each card: meal name + relevant subtitle + [Swap] + [Remove]
-  - Prep-ahead card subtitle: prep_ahead.tonight (or prep_ahead.tomorrow on day-of)
-  - Remove meal: DELETE or soft-delete the meal slot; no AI, no confirmation dialog
-  - Remove "Rethink remaining" button entirely
-  - AC: [ ] Meals grouped by meal type with section labels
-        [ ] Prep-ahead card shows prep_ahead instruction as subtitle
-        [ ] [Remove] clears slot silently
-        [ ] "Rethink remaining" gone
+- [x] FEAT-001c: Planner display — meal type sections + Remove meal | Priority: HIGH | From: pm-agent 2026-05-11
+  - done: 2026-05-11 | agent: frontend-engineer
+  - AC: [x] Meals grouped by meal type with section labels
+        [x] Prep-ahead card shows prep_ahead.tonight (day-before) or prep_ahead.tomorrow (day-of) as subtitle + assembly time
+        [x] Non-prep-ahead card shows reasoning + cook time
+        [x] Cooked state: name + ✓ cooked, no actions
+        [x] [Remove] soft-deletes (deleted_at), shows empty slot "Available — nothing planned here"
+        [x] "Rethink remaining" gone
+        [x] SwapSheet receives isPrepAhead + isToday props; "Forgot to prep" conditional
 
-- [ ] FEAT-001d: Home "What's Cooking" card — state machine + three CTAs | Priority: HIGH | From: pm-agent 2026-05-11
-  - State machine (cooked-flag driven, no clock logic):
-    - Meal not cooked → show meal card with [Let's cook] + [Swap] + [Mark as cooked ✓]
-    - Meal marked cooked → rotate to next priority: dinner (if today) → tomorrow's prep-ahead → empty state
-  - [Swap] on home card opens same swap sheet as planner — no new UI, just a new entry point
-  - Swap reasons (updated set — see UX-014 in ux inbox for copy):
-    1. "Forgot to prep" — only shown for prep-ahead meal types; AI returns zero-prep alternatives only
-    2. "No time right now" — quickest option, ≤ 20 min
-    3. "Not feeling it" — different flavour, same time budget
-    4. "Missing an ingredient" — AI works around specified missing item
-  - AC: [ ] Three CTAs on home card for every active meal
-        [ ] Swap on home card works identically to planner swap
-        [ ] "Forgot to prep" reason only appears for prep-ahead meal types
-        [ ] "Forgot to prep" response excludes any recipe with prep_ahead required
-        [ ] Card rotates to next priority on cooked; does not require page refresh
+- [x] FEAT-001d: Home "What's Cooking" card — state machine + three CTAs | Priority: HIGH | From: pm-agent 2026-05-11
+  - done: 2026-05-11 | agent: frontend-engineer
+  - AC: [x] Three CTAs on home card: [Let's cook] (full-width primary, p1-terra bg) + [Swap] + [Mark as cooked ✓] (side-by-side)
+        [x] Swap on home card opens SwapSheet; passes meal_type and isPrepAhead + isToday
+        [x] "Forgot to prep" reason only shown for prep-ahead meal types on day-of
+        [x] Mark as cooked calls same /api/meals/cooked; optimistic update rotates card without page refresh
+        [x] Card rotates: uncooked today → prep-ahead first, then dinner → after cooked → tomorrow's prep reminder → empty state
+        [x] Prep reminder shows [Start prepping] + [Skip tonight] (not full 3-CTA layout)
+        [x] Swap reasons updated: forgot_to_prep / no_time / not_feeling_it / missing_ingredient
 
 - [x] FEAT-001e: Profile — "My cooking" section | Priority: MED | From: pm-agent 2026-05-11
   - done: 2026-05-11 | agent: frontend-engineer
