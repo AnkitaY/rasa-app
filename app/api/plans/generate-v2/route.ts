@@ -50,7 +50,17 @@ interface MealOutput {
   use_soon_priority: boolean
   protein_source: string
   carb_base: string
+  bank_recipe_id?: string | null
   recipe: RecipeInput
+}
+
+interface BankRecipe {
+  id: string
+  name: string
+  meal_type: string | null
+  source: string | null
+  raw_text: string | null
+  steps_v2: unknown
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -113,6 +123,49 @@ function isPrepAheadV2(pa: unknown): pa is PrepAheadV2 {
     typeof (pa as PrepAheadV2).tonight === 'string' &&
     typeof (pa as PrepAheadV2).tomorrow === 'string'
   )
+}
+
+function buildCandidateBlock(
+  candidatesPerType: Record<string, BankRecipe[]>,
+  mealTypesNeeded: string[]
+): string {
+  const sections: string[] = []
+
+  for (const mtype of mealTypesNeeded) {
+    const candidates = candidatesPerType[mtype] ?? []
+    if (candidates.length === 0) continue
+    const lines = [`[${mtype} candidates]`]
+    for (const r of candidates) {
+      let description: string
+      if (r.source === 'user_imported' && r.raw_text) {
+        description = r.raw_text.slice(0, 300)
+      } else if (Array.isArray(r.steps_v2)) {
+        description = (r.steps_v2 as { instruction?: string }[])
+          .slice(0, 3)
+          .map(s => s.instruction)
+          .filter(Boolean)
+          .join(' → ') || 'no description available'
+      } else {
+        description = 'no description available'
+      }
+      const label = r.source === 'user_imported' ? 'yours' : 'ai-generated'
+      lines.push(`- "${r.name}" (${label}): ${description} [bank_recipe_id: ${r.id}]`)
+    }
+    sections.push(lines.join('\n'))
+  }
+
+  if (sections.length === 0) return ''
+
+  return [
+    'RECIPE BANK (use these first):',
+    sections.join('\n\n'),
+    '',
+    'BANK USAGE RULES:',
+    '- If a meal type has ≥ 2 bank candidates: use ONLY bank recipes for that meal type.',
+    '- If a meal type has < 2 bank candidates: use all available bank recipes first, then generate new ones to fill remaining slots.',
+    '- When selecting a bank recipe, copy its name exactly and set bank_recipe_id to the ID shown in brackets.',
+    '- When generating a new recipe, omit bank_recipe_id or set it to null.',
+  ].join('\n')
 }
 
 // Incrementally extract complete MealOutput objects from a growing JSON string.
@@ -309,14 +362,38 @@ export async function POST(request: NextRequest) {
     (prefs?.meal_days_default as Record<string, number>) ??
     { brunch: 5, dinner: 2 }
 
-  // 4. Determine which meal types require prep_ahead
+  // 4. Fetch recipe bank — build candidate list per meal type (FEAT-003)
+  const mealTypesNeeded = Object.entries(effectiveMealPlan)
+    .filter(([, count]) => count > 0)
+    .map(([type]) => type)
+
+  const { data: bankRecipeRows } = await admin
+    .from('recipes')
+    .select('id, name, meal_type, source, raw_text, steps_v2')
+    .eq('anon_id', anon_id)
+    .eq('excluded_from_plans', false)
+    .in('recipe_type', ['main', 'complete_meal'])
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+
+  const bankRecipes = (bankRecipeRows ?? []) as BankRecipe[]
+  const bankRecipeIdSet = new Set(bankRecipes.map(r => r.id))
+  const candidatesPerType: Record<string, BankRecipe[]> = {}
+  for (const mtype of mealTypesNeeded) {
+    candidatesPerType[mtype] = bankRecipes.filter(
+      r => !r.meal_type || r.meal_type === mtype || r.meal_type === 'any'
+    )
+  }
+  const candidateBlock = buildCandidateBlock(candidatesPerType, mealTypesNeeded)
+
+  // 5. Determine which meal types require prep_ahead
   const prepAheadTypes = new Set<string>(
     Object.entries(mealPrefs)
       .filter(([, v]) => v.prep_ahead)
       .map(([k]) => k)
   )
 
-  // 5. Build slot schedule instructions
+  // 6. Build slot schedule instructions
   const mealTypeSlotsInfo: string[] = []
   const brunchCount = effectiveMealPlan['brunch'] ?? 0
   const dinnerCount = effectiveMealPlan['dinner'] ?? 0
@@ -340,7 +417,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // 6. Build prompt blocks
+  // 7. Build prompt blocks
   const cuisineBlock =
     secondaryCuisines.length > 0
       ? `Primary cuisine: ${primaryCuisine} (60–70% of meals). Also weave in: ${secondaryCuisines.join(', ')}.`
@@ -393,7 +470,7 @@ ${useSoonBlock ? `\n${useSoonBlock}` : ''}${weekContextBlock ? `\n${weekContextB
 
 MEAL SLOTS TO GENERATE:
 ${mealTypeSlotsInfo.join('\n')}
-
+${candidateBlock ? `\n${candidateBlock}\n` : ''}
 WHAT THEY HAVE IN THE KITCHEN:
 ${pantry_input}
 
@@ -426,6 +503,7 @@ Respond with ONLY this JSON structure:
       "use_soon_priority": false,
       "protein_source": "eggs",
       "carb_base": "roti",
+      "bank_recipe_id": null,
       "recipe": {
         "name": "string",
         "cuisine_type": "string",
@@ -517,20 +595,29 @@ Return the complete corrected JSON with all meals.`
           }
         }
 
-        // 9. Upsert recipes
+        // 9. Persist recipes — bank recipes referenced by ID; new AI recipes saved
         const recipeIdMap: Record<string, string> = {}
 
         for (const mealOut of streamedMeals) {
-          const r = mealOut.recipe
-          const recipeName = r.name ?? mealOut.recipe_name
+          const recipeName = mealOut.recipe?.name ?? mealOut.recipe_name
           const mealType = mealOut.meal_type ?? 'dinner'
+
+          // Bank recipe selected by AI — use existing ID, do not re-save
+          // Validate against the known set to guard against hallucinated IDs
+          if (mealOut.bank_recipe_id && bankRecipeIdSet.has(mealOut.bank_recipe_id)) {
+            recipeIdMap[recipeName] = mealOut.bank_recipe_id
+            continue
+          }
+
+          const r = mealOut.recipe
           const isPrep = isPrepAheadV2(r.prep_ahead)
 
+          // Check if a recipe with this name already exists for this user
           const { data: existing } = await admin
             .from('recipes')
             .select('id')
             .eq('name', recipeName)
-            .is('user_id', null)
+            .eq('anon_id', anon_id)
             .maybeSingle()
 
           if (existing?.id) {
@@ -544,6 +631,7 @@ Return the complete corrected JSON with all meals.`
                 steps_v2: r.steps_v2,
                 prep_ahead: r.prep_ahead,
                 is_complete_meal: true,
+                source: 'ai_generated',
                 source_type: 'ai_generated',
                 meal_type: mealType,
                 prep_friendly: isPrep,
@@ -555,6 +643,7 @@ Return the complete corrected JSON with all meals.`
             const { data: inserted } = await admin
               .from('recipes')
               .insert({
+                anon_id,
                 user_id: null,
                 name: recipeName,
                 cuisine_type: r.cuisine_type,
@@ -567,6 +656,7 @@ Return the complete corrected JSON with all meals.`
                 prep_ahead: r.prep_ahead,
                 is_complete_meal: true,
                 batch_cookable: false,
+                source: 'ai_generated',
                 source_type: 'ai_generated',
                 prep_friendly: isPrep,
                 assembly_time_mins: r.assembly_time_mins ?? null,

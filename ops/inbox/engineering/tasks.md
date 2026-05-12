@@ -169,7 +169,8 @@ Depends on: FEAT-002 (recipes in bank) + FEAT-001b (meal_type on recipes for fil
         [ ] Recipe remains visible in bank (not deleted)
         [ ] Recipe never appears in plan generation candidate list
 
-- [ ] FEAT-003: Bank-first plan generation + protein-first + health_goals | Priority: HIGH | From: pm-agent 2026-05-11
+- [x] FEAT-003: Bank-first plan generation + protein-first + health_goals | Priority: HIGH | From: pm-agent 2026-05-11
+  - done: 2026-05-11 | agent: backend-engineer
   - Before calling Claude: fetch user recipe bank filtered by meal_type + NOT excluded_from_plans; recipe_type IN ('main','complete_meal') only
   - Build candidate list; pass to prompt with instruction: prefer bank recipes, generate new only when < 2 candidates per slot
   - Add to system prompt (verbatim):
@@ -182,13 +183,13 @@ Depends on: FEAT-002 (recipes in bank) + FEAT-001b (meal_type on recipes for fil
     - No same protein on consecutive days
     - No same carb base 3+ times in plan
   - For user-imported recipes selected from bank: pass raw_text; for AI-generated: pass steps_v2 summary
-  - AC: [ ] Candidate list fetched and passed to prompt before generation
-        [ ] Bank recipes used when ≥ 2 candidates available per slot
-        [ ] New recipes generated only when bank coverage < 2 per slot
-        [ ] Selected bank recipes referenced by ID — not re-saved
-        [ ] All four prompt additions present in system prompt
-        [ ] Post-generation validation runs; re-prompts once on failure
-        [ ] health_goals fetched server-side from user_preferences
+  - AC: [x] Candidate list fetched and passed to prompt before generation
+        [x] Bank recipes used when ≥ 2 candidates available per slot
+        [x] New recipes generated only when bank coverage < 2 per slot
+        [x] Selected bank recipes referenced by ID — not re-saved
+        [x] All four prompt additions present in system prompt
+        [x] Post-generation validation runs; re-prompts once on failure
+        [x] health_goals fetched server-side from user_preferences
 
 ---
 
