@@ -105,13 +105,11 @@ PRD: docs/prd/feat-002-recipe-bank-import.md
 ### STAGE 4 — Meal types + planning form + home card (FEAT-001)
 PRD: docs/prd/feat-001-brunch-meal-type.md — read fully before starting.
 
-- [ ] FEAT-001a: Planning form — meal type selection + day counts | Priority: HIGH | From: pm-agent 2026-05-11
-  - Replace current form header with: meal type chips (Breakfast/Brunch/Lunch/Dinner, multi-select) + days stepper per selected type
-  - Pre-fill from user_preferences.meal_days_default on returning visits
-  - Send as meal_plan JSON to generate-v2: `{"brunch":5,"dinner":2}`
-  - AC: [ ] Chips + steppers render; steppers only show for selected meal types
-        [ ] Defaults pre-filled on return visit
-        [ ] meal_plan JSON sent correctly to generate-v2
+- [x] FEAT-001a: Planning form — meal type selection + day counts | Priority: HIGH | From: pm-agent 2026-05-11
+  - done: 2026-05-11 | agent: frontend-engineer
+  - AC: [x] Chips + steppers render; steppers only show for selected meal types
+        [x] Defaults pre-filled on return visit
+        [x] meal_plan JSON + plan_start_date sent correctly to generate-v2
 
 - [ ] FEAT-001b: generate-v2 — meal type slots + rolling planning window | Priority: HIGH | From: pm-agent 2026-05-11
   - Accept plan_start_date (today) + meal_plan JSON
@@ -152,13 +150,11 @@ PRD: docs/prd/feat-001-brunch-meal-type.md — read fully before starting.
         [ ] "Forgot to prep" response excludes any recipe with prep_ahead required
         [ ] Card rotates to next priority on cooked; does not require page refresh
 
-- [ ] FEAT-001e: Profile — "My cooking" section | Priority: MED | From: pm-agent 2026-05-11
-  - Meal type chips (multi-select) + typical days stepper per selected type
-  - Saved to meal_types_default + meal_days_default + meal_prefs in user_preferences
-  - health_goals free text field with chip suggestions: "High protein, balanced" · "Lighter meals" · "Family-friendly" · "Quick and simple"
-  - AC: [ ] Profile saves meal defaults correctly
-        [ ] health_goals saved to user_preferences.health_goals
-        [ ] Planning form pre-fills from saved profile on next visit
+- [x] FEAT-001e: Profile — "My cooking" section | Priority: MED | From: pm-agent 2026-05-11
+  - done: 2026-05-11 | agent: frontend-engineer
+  - AC: [x] Profile saves meal defaults correctly (auto-save on change, 800ms debounce)
+        [x] health_goals saved to user_preferences.health_goals
+        [x] Planning form pre-fills from saved profile on next visit
 
 ---
 

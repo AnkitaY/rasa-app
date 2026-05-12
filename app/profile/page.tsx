@@ -1,10 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getAnonId } from '@/lib/anon'
 import { cn } from '@/lib/utils'
 import { ChevronLeft } from 'lucide-react'
+import { MealTypeChips } from '@/app/components/MealTypeChips'
+import { DaysStepper, MEAL_TYPE_DEFAULTS, MEAL_TYPE_RANGES } from '@/app/components/DaysStepper'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -29,14 +31,21 @@ const SKILL_OPTIONS = [
 ]
 
 const BUDGET_OPTIONS = [
-  { value: 'under_30',   label: '≤ 30 min',  sub: 'Always in a rush' },
-  { value: '30_to_45',   label: '30–45 min', sub: 'The usual weeknight' },
-  { value: 'hour_is_fine', label: '60 min+', sub: 'Happy to take my time' },
+  { value: 'under_30',    label: '≤ 30 min',  sub: 'Always in a rush' },
+  { value: '30_to_45',    label: '30–45 min', sub: 'The usual weeknight' },
+  { value: 'hour_is_fine', label: '60 min+',  sub: 'Happy to take my time' },
 ]
 
 const GOAL_OPTIONS = [
   'Eat healthier', 'Reduce food waste', 'Save money',
   'Try new cuisines', 'Cook more at home', 'Batch cook',
+]
+
+const HEALTH_GOAL_CHIPS = [
+  { label: 'High protein, balanced', value: 'high protein, balanced' },
+  { label: 'Lighter meals',          value: 'lighter meals'          },
+  { label: 'Family-friendly',        value: 'family-friendly'        },
+  { label: 'Quick and simple',       value: 'quick and simple'       },
 ]
 
 // ── Page ─────────────────────────────────────────────────────────────────────
@@ -65,6 +74,19 @@ export default function ProfilePage() {
   const [budget, setBudget] = useState('')
   const [goals, setGoals] = useState<string[]>([])
 
+  // ── Block 3 — My cooking ────────────────────────────────────────────────────
+  const [mealTypesDefault, setMealTypesDefault] = useState<string[]>(['brunch', 'dinner'])
+  const [mealDaysDefault, setMealDaysDefault] = useState<Record<string, number>>({ brunch: 5, dinner: 2 })
+  const [healthGoalChips, setHealthGoalChips] = useState<string[]>([])
+  const [showHealthFreeText, setShowHealthFreeText] = useState(false)
+  const [healthGoalFreeText, setHealthGoalFreeText] = useState('')
+
+  // tracks whether initial prefs have been loaded so auto-save doesn't fire on mount
+  const [prefsLoaded, setPrefsLoaded] = useState(false)
+  const autoSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // skips the first auto-save effect run (triggered by prefsLoaded flipping to true)
+  const initialLoadRef = useRef(true)
+
   // ── Load prefs on mount ──────────────────────────────────────────────────────
   useEffect(() => {
     const anonId = getAnonId()
@@ -91,10 +113,93 @@ export default function ProfilePage() {
         setSkill(p.skill_level ?? '')
         setBudget(p.weeknight_budget ?? '')
         setGoals(p.goals ?? [])
+        // Block 3 — My cooking
+        if (Array.isArray(p.meal_types_default) && p.meal_types_default.length > 0) {
+          setMealTypesDefault(p.meal_types_default as string[])
+        }
+        if (p.meal_days_default && typeof p.meal_days_default === 'object') {
+          setMealDaysDefault(p.meal_days_default as Record<string, number>)
+        }
+        // Parse health_goals into chips + free text
+        const rawGoals = (p.health_goals as string | null) ?? ''
+        if (rawGoals) {
+          const knownValues = new Set(HEALTH_GOAL_CHIPS.map(c => c.value))
+          const parts = rawGoals.split(',').map((s: string) => s.trim()).filter(Boolean)
+          const matched: string[] = []
+          const unmatched: string[] = []
+          for (const part of parts) {
+            if (knownValues.has(part)) {
+              matched.push(part)
+            } else {
+              unmatched.push(part)
+            }
+          }
+          setHealthGoalChips(matched)
+          if (unmatched.length > 0) {
+            setHealthGoalFreeText(unmatched.join(', '))
+            setShowHealthFreeText(true)
+          }
+        }
       })
       .catch(() => { /* silently fail — form stays blank */ })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        setLoading(false)
+        setPrefsLoaded(true)
+      })
   }, [])
+
+  // ── Auto-save "My cooking" fields on change ──────────────────────────────────
+  useEffect(() => {
+    if (!prefsLoaded) return
+    if (initialLoadRef.current) { initialLoadRef.current = false; return }
+    if (autoSaveRef.current) clearTimeout(autoSaveRef.current)
+    autoSaveRef.current = setTimeout(() => {
+      const anonId = getAnonId()
+      const healthParts = [
+        ...healthGoalChips,
+        ...(showHealthFreeText && healthGoalFreeText.trim() ? [healthGoalFreeText.trim()] : []),
+      ]
+      fetch('/api/preferences/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          anon_id: anonId,
+          meal_types_default: mealTypesDefault,
+          meal_days_default: mealDaysDefault,
+          health_goals: healthParts.join(', ') || null,
+        }),
+      }).catch(() => {})
+    }, 800)
+    return () => {
+      if (autoSaveRef.current) clearTimeout(autoSaveRef.current)
+    }
+  }, [prefsLoaded, mealTypesDefault, mealDaysDefault, healthGoalChips, showHealthFreeText, healthGoalFreeText])
+
+  // ── Meal type handlers ───────────────────────────────────────────────────────
+  function handleMealTypeDefaultChange(selected: string[]) {
+    setMealTypesDefault(selected)
+    setMealDaysDefault(prev => {
+      const next = { ...prev }
+      for (const type of selected) {
+        if (next[type] === undefined) {
+          next[type] = MEAL_TYPE_DEFAULTS[type] ?? 3
+        }
+      }
+      return next
+    })
+  }
+
+  function handleDefaultDaysChange(type: string, value: number) {
+    const { min, max } = MEAL_TYPE_RANGES[type] ?? { min: 1, max: 7 }
+    setMealDaysDefault(prev => ({ ...prev, [type]: Math.min(max, Math.max(min, value)) }))
+  }
+
+  // ── Health goal chip handlers ────────────────────────────────────────────────
+  function toggleHealthGoalChip(value: string) {
+    setHealthGoalChips(prev =>
+      prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]
+    )
+  }
 
   // ── Dietary chip handler ─────────────────────────────────────────────────────
   function toggleDietaryChip(chip: string) {
@@ -126,7 +231,7 @@ export default function ProfilePage() {
     setGoals(prev => prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g])
   }
 
-  // ── Save ─────────────────────────────────────────────────────────────────────
+  // ── Save (Block 1 + Block 2) ─────────────────────────────────────────────────
   async function handleSave() {
     setSaving(true)
     setError('')
@@ -445,9 +550,106 @@ export default function ProfilePage() {
           </div>
         </section>
 
+        {/* ── Divider ───────────────────────────────────────────────────── */}
+        <div className="h-px bg-p1-border-lt" />
+
+        {/* ══════════════════════════════════════════════════════════════════
+            BLOCK 3 — My cooking
+        ════════════════════════════════════════════════════════════════════ */}
+
+        <section>
+          <div className="mb-4">
+            <h2 className="text-xl font-ui font-bold text-p1-dark">My cooking</h2>
+            <p className="text-xs font-ui text-p1-brown/70 mt-1">
+              This pre-fills your planning form every week. You can always adjust when you plan.
+            </p>
+          </div>
+
+          {/* ── Field 1 — Which meals do you cook ─────────────────────── */}
+          <div className="space-y-2 mb-6">
+            <label className="text-xs font-ui font-bold text-p1-brown uppercase tracking-widest block">
+              Which meals do you cook at home?
+            </label>
+            <p className="text-xs font-ui text-p1-brown/70">Pick everything that applies.</p>
+            <MealTypeChips
+              selected={mealTypesDefault}
+              onChange={handleMealTypeDefaultChange}
+            />
+          </div>
+
+          {/* ── Field 2 — Typical days per week (per type) ────────────── */}
+          {mealTypesDefault.length > 0 && (
+            <div className="space-y-1 bg-p1-card rounded-2xl px-4 py-2 mb-6">
+              {mealTypesDefault.map(type => (
+                <DaysStepper
+                  key={type}
+                  label={`Typical ${type} days per week`}
+                  mealType={type}
+                  value={mealDaysDefault[type] ?? MEAL_TYPE_DEFAULTS[type] ?? 3}
+                  onChange={value => handleDefaultDaysChange(type, value)}
+                />
+              ))}
+              <p className="text-xs font-ui text-p1-brown/60 pt-1 pb-1">
+                This is your usual week — not a hard rule. You&apos;ll set the exact days each time you plan.
+              </p>
+            </div>
+          )}
+
+          {/* ── Field 3 — Health goals ────────────────────────────────── */}
+          <div className="space-y-2">
+            <label className="text-xs font-ui font-bold text-p1-brown uppercase tracking-widest block">
+              How do you like to eat?
+            </label>
+            <p className="text-xs font-ui text-p1-brown/70">
+              We&apos;ll keep this in mind when building your plan.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {HEALTH_GOAL_CHIPS.map(chip => {
+                const active = healthGoalChips.includes(chip.value)
+                return (
+                  <button
+                    key={chip.value}
+                    type="button"
+                    onClick={() => toggleHealthGoalChip(chip.value)}
+                    className={cn(
+                      'px-3.5 py-1.5 rounded-full text-[11px] font-ui font-semibold border transition-all',
+                      active
+                        ? 'bg-p1-terra text-white border-p1-terra'
+                        : 'bg-p1-card text-p1-brown border-p1-border'
+                    )}
+                  >
+                    {chip.label}
+                  </button>
+                )
+              })}
+              <button
+                type="button"
+                onClick={() => setShowHealthFreeText(v => !v)}
+                className={cn(
+                  'px-3.5 py-1.5 rounded-full text-[11px] font-ui font-semibold border transition-all',
+                  showHealthFreeText
+                    ? 'bg-p1-terra text-white border-p1-terra'
+                    : 'bg-p1-card text-p1-brown border-p1-border'
+                )}
+              >
+                Something else
+              </button>
+            </div>
+            {showHealthFreeText && (
+              <input
+                type="text"
+                value={healthGoalFreeText}
+                onChange={e => setHealthGoalFreeText(e.target.value)}
+                placeholder="Tell us your preference"
+                className="w-full px-4 py-3 rounded-xl border border-p1-border bg-p1-card text-sm font-ui text-p1-dark placeholder:text-p1-brown/40 focus:outline-none focus:border-p1-terra transition-colors mt-2"
+              />
+            )}
+          </div>
+        </section>
+
       </div>
 
-      {/* ── Sticky save bar ─────────────────────────────────────────────────── */}
+      {/* ── Sticky save bar (Block 1 + Block 2 only — My cooking auto-saves) ─── */}
       <div className="fixed bottom-0 left-0 right-0 px-5 pb-8 pt-3 bg-p1-cream border-t border-p1-border-lt">
         {saved && (
           <p className="text-center text-xs font-ui text-p1-forest font-semibold mb-2">

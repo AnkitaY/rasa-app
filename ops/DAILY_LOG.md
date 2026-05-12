@@ -6,6 +6,7 @@
 # Example entries:
 # 2026-05-07 debug-agent: BUG-001 meal plan safari → done | fix in branch fix/bug-001-safari
 # 2026-05-07 code-reviewer: reviewed fix/bug-001-safari → NEEDS_CHANGES | 1 issue filed in PR
+2026-05-11 frontend-engineer: FEAT-001a + FEAT-001e planning form + profile My cooking → done | MealTypeChips + DaysStepper shared components; planning form field order updated (chips→steppers→pantry→use-soon→week); sends meal_plan+plan_start_date to generate-v2; profile My cooking section auto-saves meal_types_default, meal_days_default, health_goals; npm run build ✓ (46/46 pages)
 2026-05-11 backend-engineer: BUG-014 recipe bank cross-user leak → done | added anon_id+deleted_at cols to recipes; soft-deleted 47 seed rows; fixed list/import/generate/manual routes + 3 caller pages; npm run build ✓ (46/46 pages)
 2026-05-07 backend-engineer: BUG-002 shopping list anon_id guard → done | added 400 guard at top of POST /api/shopping/generate; npm run build ✓ (38/38 pages, no errors)
 2026-05-07 frontend-engineer: BUG-001 direct Supabase calls in app/page.tsx + app/recipes/[id]/page.tsx → done | created GET /api/recipes/[id] (admin client); replaced both anon-key calls with fetch(); npm run build ✓ clean

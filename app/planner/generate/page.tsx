@@ -4,11 +4,14 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { getAnonId } from '@/lib/anon'
+import { MealTypeChips } from '@/app/components/MealTypeChips'
+import { DaysStepper, MEAL_TYPE_DEFAULTS, MEAL_TYPE_RANGES } from '@/app/components/DaysStepper'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type StreamedMeal = {
   day: string
+  meal_type?: string
   recipe_name: string
   reasoning?: string | null
   use_soon_priority?: boolean
@@ -22,6 +25,9 @@ const DAY_LABELS: Record<string, string> = {
 }
 
 const TODAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date().getDay()]
+
+const DEFAULT_MEAL_TYPES = ['brunch', 'dinner']
+const DEFAULT_MEAL_DAYS: Record<string, number> = { brunch: 5, dinner: 2 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -58,9 +64,17 @@ export default function GeneratePage() {
   const isRegen = searchParams.get('mode') === 'regen'
 
   const [pageState, setPageState] = useState<PageState>('idle')
+
+  // ── Meal type + days state ──────────────────────────────────────────────────
+  const [mealTypes, setMealTypes] = useState<string[]>(DEFAULT_MEAL_TYPES)
+  const [mealDays, setMealDays] = useState<Record<string, number>>(DEFAULT_MEAL_DAYS)
+
+  // ── Existing fields ─────────────────────────────────────────────────────────
   const [pantryInput, setPantryInput] = useState('')
   const [weekContext, setWeekContext] = useState('')
   const [useSoon, setUseSoon] = useState('')
+
+  // ── Generation state ────────────────────────────────────────────────────────
   const [loadingMsg, setLoadingMsg] = useState('')
   const [meals, setMeals] = useState<StreamedMeal[]>([])
   const [weekPlanId, setWeekPlanId] = useState('')
@@ -69,18 +83,53 @@ export default function GeneratePage() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const mealIndexRef = useRef(0)
 
-  // Pre-fill pantry from last saved input
+  // Pre-fill from preferences on mount
   useEffect(() => {
     const anonId = getAnonId()
     fetch(`/api/preferences/get?anon_id=${encodeURIComponent(anonId)}`)
       .then(r => r.json())
-      .then(({ preferences }) => {
-        if (preferences?.last_pantry_input) {
-          setPantryInput(preferences.last_pantry_input)
+      .then(({ preferences: p }) => {
+        if (!p) return
+        // Pre-fill pantry
+        if (p.last_pantry_input) setPantryInput(p.last_pantry_input)
+        // Pre-fill meal types from profile defaults
+        if (Array.isArray(p.meal_types_default) && p.meal_types_default.length > 0) {
+          setMealTypes(p.meal_types_default as string[])
+        }
+        // Pre-fill meal days from profile defaults
+        if (p.meal_days_default && typeof p.meal_days_default === 'object') {
+          const defaults = p.meal_days_default as Record<string, number>
+          setMealDays(prev => {
+            const merged: Record<string, number> = { ...prev }
+            for (const [type, days] of Object.entries(defaults)) {
+              if (typeof days === 'number') merged[type] = days
+            }
+            return merged
+          })
         }
       })
       .catch(() => {/* allow through */})
   }, [])
+
+  // Handle meal type toggle — initialise days value when a new type is added
+  function handleMealTypeChange(selected: string[]) {
+    setMealTypes(selected)
+    // initialise any newly-added type with its default day count
+    setMealDays(prev => {
+      const next = { ...prev }
+      for (const type of selected) {
+        if (next[type] === undefined) {
+          next[type] = MEAL_TYPE_DEFAULTS[type] ?? 3
+        }
+      }
+      return next
+    })
+  }
+
+  function handleDaysChange(type: string, value: number) {
+    const { min, max } = MEAL_TYPE_RANGES[type] ?? { min: 1, max: 7 }
+    setMealDays(prev => ({ ...prev, [type]: Math.min(max, Math.max(min, value)) }))
+  }
 
   // Rotate loading messages while in the initial loading state
   useEffect(() => {
@@ -101,7 +150,7 @@ export default function GeneratePage() {
   }, [pageState, useSoon, weekContext])
 
   async function handleGenerate() {
-    if (!pantryInput.trim()) return
+    if (!pantryInput.trim() || mealTypes.length === 0) return
     setError('')
     setMeals([])
     setVisibleCount(0)
@@ -110,6 +159,14 @@ export default function GeneratePage() {
     setPageState('loading')
 
     const anonId = getAnonId()
+    const today = new Date().toISOString().split('T')[0]
+
+    // Build meal_plan from selected types + their day counts
+    const mealPlan: Record<string, number> = {}
+    for (const type of mealTypes) {
+      mealPlan[type] = mealDays[type] ?? MEAL_TYPE_DEFAULTS[type] ?? 3
+    }
+
     let gotDone = false
 
     try {
@@ -121,10 +178,11 @@ export default function GeneratePage() {
           pantry_input: pantryInput.trim(),
           week_context: weekContext.trim() || undefined,
           use_soon: useSoon.trim() || undefined,
+          plan_start_date: today,
+          meal_plan: mealPlan,
         }),
       })
 
-      // Pre-stream errors (400/500) are plain JSON
       if (!res.ok) {
         const data = await res.json()
         throw new Error(data.error ?? 'Unknown error')
@@ -142,7 +200,6 @@ export default function GeneratePage() {
 
         buffer += decoder.decode(value, { stream: true })
 
-        // Process all complete lines
         const lines = buffer.split('\n')
         buffer = lines.pop() ?? ''
 
@@ -161,7 +218,6 @@ export default function GeneratePage() {
             const idx = mealIndexRef.current++
             setMeals(prev => [...prev, event.meal as StreamedMeal])
             setPageState('streaming')
-            // 50ms delay lets React render the card at opacity:0 before transitioning to 1
             setTimeout(() => setVisibleCount(c => Math.max(c, idx + 1)), 50)
           } else if (event.type === 'done') {
             gotDone = true
@@ -185,7 +241,7 @@ export default function GeneratePage() {
       setMeals([])
       setVisibleCount(0)
       mealIndexRef.current = 0
-      setError("Hmm, something went wrong. Give it one more try?")
+      setError('Hmm, something went wrong. Give it one more try?')
     }
   }
 
@@ -194,7 +250,6 @@ export default function GeneratePage() {
     return (
       <main className="min-h-screen bg-p1-cream flex flex-col items-center justify-center px-6 pb-24">
         <div className="text-center max-w-xs">
-          {/* Animated cooking dots */}
           <div className="flex justify-center gap-2 mb-8">
             {[0, 1, 2].map(i => (
               <span
@@ -231,7 +286,6 @@ export default function GeneratePage() {
     const isSaving = pageState === 'streaming'
     return (
       <main className="min-h-screen bg-p1-cream pb-32">
-        {/* Status banner */}
         <div className={`px-5 py-3 flex items-center gap-2 ${isSaving ? 'bg-p1-dark' : 'bg-p1-forest'}`}>
           {isSaving ? (
             <p className="text-white text-sm font-ui">Building your plan…</p>
@@ -250,11 +304,10 @@ export default function GeneratePage() {
             Your week is sorted. 🎉
           </h1>
           <p className="mt-1 text-sm text-p1-brown font-ui">
-            {n} dinner{n !== 1 ? 's' : ''}{isSaving ? ' so far…' : ', zero decision fatigue.'}
+            {n} meal{n !== 1 ? 's' : ''}{isSaving ? ' so far…' : ', zero decision fatigue.'}
           </p>
         </div>
 
-        {/* Meal cards — appear as each one streams in */}
         <div className="px-5 space-y-3">
           {meals.map((meal, i) => {
             const isToday = meal.day === TODAY_ABBR
@@ -270,22 +323,24 @@ export default function GeneratePage() {
                 }}
                 className="bg-p1-card rounded-2xl p-4 shadow-sm"
               >
-                {/* Day + use-soon tag */}
                 <div className="flex items-center gap-2 mb-1">
                   <span className={`text-xs font-ui font-semibold uppercase tracking-wider ${isToday ? 'text-p1-terra' : 'text-p1-brown'}`}>
-                    {isToday ? 'Tonight — ' : ''}{DAY_LABELS[meal.day] ?? meal.day}
+                    {isToday ? 'Today — ' : ''}{DAY_LABELS[meal.day] ?? meal.day}
+                    {meal.meal_type && (
+                      <span className="ml-1.5 normal-case font-normal text-p1-brown/70">
+                        · {meal.meal_type}
+                      </span>
+                    )}
                     {meal.use_soon_priority && (
                       <span className="ml-1.5 text-p1-terra">· Use soon</span>
                     )}
                   </span>
                 </div>
 
-                {/* Recipe name */}
                 <p className="text-base font-ui font-bold text-p1-dark leading-snug">
                   {meal.recipe_name}
                 </p>
 
-                {/* Reasoning */}
                 {meal.reasoning && (
                   <p className="mt-1.5 text-sm font-ui text-p1-brown italic leading-relaxed">
                     {meal.reasoning}
@@ -296,7 +351,6 @@ export default function GeneratePage() {
           })}
         </div>
 
-        {/* Footer CTAs */}
         <div className="px-5 pt-6 space-y-3">
           <button
             onClick={() => router.push('/planner')}
@@ -325,17 +379,50 @@ export default function GeneratePage() {
     <main className="min-h-screen bg-p1-cream">
       <div className="px-5 pt-12 pb-4">
         <h1 className="text-2xl font-ui font-bold text-p1-dark">
-          {isRegen ? 'Rethink the week' : "Let's build your week"}
+          {isRegen ? 'Rethink the week' : "Let’s build your week"}
         </h1>
         <p className="mt-1 text-sm text-p1-brown font-ui">
           {isRegen
-            ? 'Update what you have and we\'ll generate a fresh plan.'
-            : 'Tell us what\'s in the kitchen and we\'ll handle the rest.'}
+            ? 'Update what you have and we’ll generate a fresh plan.'
+            : 'Tell us what’s in the kitchen and we’ll handle the rest.'}
         </p>
       </div>
 
-      <div className="px-5 space-y-5 pb-8">
-        {/* Field 1 — Pantry (required, terra border) */}
+      <div className="px-5 space-y-6 pb-8">
+
+        {/* ── Field 1 — Meal type chips ───────────────────────────────────────── */}
+        <div className="space-y-2">
+          <label className="text-xs font-ui font-semibold text-p1-brown uppercase tracking-wider block">
+            What are you cooking this week?
+          </label>
+          <p className="text-xs font-ui text-p1-brown/70">
+            Pick everything that applies — you&apos;ll set days for each one.
+          </p>
+          <MealTypeChips
+            selected={mealTypes}
+            onChange={handleMealTypeChange}
+          />
+        </div>
+
+        {/* ── Field 2 — Days stepper per selected meal type ───────────────────── */}
+        {mealTypes.length > 0 && (
+          <div className="space-y-1 bg-p1-card rounded-2xl px-4 py-2">
+            {mealTypes.map(type => (
+              <DaysStepper
+                key={type}
+                label={`How many ${type} days this week?`}
+                mealType={type}
+                value={mealDays[type] ?? MEAL_TYPE_DEFAULTS[type] ?? 3}
+                onChange={value => handleDaysChange(type, value)}
+              />
+            ))}
+            <p className="text-xs font-ui text-p1-brown/60 pt-1 pb-1">
+              Just this week — you can change it every time you plan.
+            </p>
+          </div>
+        )}
+
+        {/* ── Field 3 — Pantry (required, terra border) ──────────────────────── */}
         <div className="space-y-1.5">
           <label className="text-xs font-ui font-semibold text-p1-brown uppercase tracking-wider">
             What&apos;s in the kitchen? <span className="text-p1-terra">*</span>
@@ -352,21 +439,7 @@ export default function GeneratePage() {
           </p>
         </div>
 
-        {/* Field 2 — Week context (optional, normal border) */}
-        <div className="space-y-1.5">
-          <label className="text-xs font-ui font-semibold text-p1-brown uppercase tracking-wider">
-            Anything going on this week?{' '}
-            <span className="font-normal normal-case text-p1-brown/60">(optional)</span>
-          </label>
-          <textarea
-            className="w-full min-h-[80px] rounded-xl border border-p1-border bg-p1-card px-4 py-3 text-sm font-ui text-p1-dark placeholder:text-p1-brown/40 focus:outline-none focus:border-p1-terra transition-colors resize-none leading-relaxed"
-            placeholder="Busy Thursday, guests Saturday, want to eat lighter this week…"
-            value={weekContext}
-            onChange={e => setWeekContext(e.target.value)}
-          />
-        </div>
-
-        {/* Field 3 — Use soon (optional, dashed border, smaller) */}
+        {/* ── Field 4 — Use soon (optional, dashed border) ───────────────────── */}
         <div className="space-y-1.5">
           <label className="text-xs font-ui font-semibold text-p1-brown uppercase tracking-wider">
             Anything to use up?{' '}
@@ -384,14 +457,28 @@ export default function GeneratePage() {
           </p>
         </div>
 
-        {/* Error */}
+        {/* ── Field 5 — Week context (optional) ──────────────────────────────── */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-ui font-semibold text-p1-brown uppercase tracking-wider">
+            Anything going on this week?{' '}
+            <span className="font-normal normal-case text-p1-brown/60">(optional)</span>
+          </label>
+          <textarea
+            className="w-full min-h-[80px] rounded-xl border border-p1-border bg-p1-card px-4 py-3 text-sm font-ui text-p1-dark placeholder:text-p1-brown/40 focus:outline-none focus:border-p1-terra transition-colors resize-none leading-relaxed"
+            placeholder="Busy Thursday, guests Saturday, want to eat lighter this week…"
+            value={weekContext}
+            onChange={e => setWeekContext(e.target.value)}
+          />
+        </div>
+
+        {/* ── Error ──────────────────────────────────────────────────────────── */}
         {error && (
           <p className="text-sm text-red-600 font-ui bg-red-50 border border-red-200 rounded-xl px-4 py-3">
             {error}
           </p>
         )}
 
-        {/* CTA */}
+        {/* ── CTA ────────────────────────────────────────────────────────────── */}
         <button
           onClick={handleGenerate}
           disabled={!pantryInput.trim()}
