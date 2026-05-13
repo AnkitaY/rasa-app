@@ -75,8 +75,8 @@ export default function ProfilePage() {
   const [goals, setGoals] = useState<string[]>([])
 
   // ── Block 3 — My cooking ────────────────────────────────────────────────────
-  const [mealTypesDefault, setMealTypesDefault] = useState<string[]>(['brunch', 'dinner'])
-  const [mealDaysDefault, setMealDaysDefault] = useState<Record<string, number>>({ brunch: 5, dinner: 2 })
+  const [mealTypesDefault, setMealTypesDefault] = useState<string[]>(['breakfast', 'dinner'])
+  const [mealDaysDefault, setMealDaysDefault] = useState<Record<string, number>>({ breakfast: 5, dinner: 2 })
   const [healthGoalChips, setHealthGoalChips] = useState<string[]>([])
   const [showHealthFreeText, setShowHealthFreeText] = useState(false)
   const [healthGoalFreeText, setHealthGoalFreeText] = useState('')
@@ -113,12 +113,19 @@ export default function ProfilePage() {
         setSkill(p.skill_level ?? '')
         setBudget(p.weeknight_budget ?? '')
         setGoals(p.goals ?? [])
-        // Block 3 — My cooking
+        // Block 3 — My cooking (normalize brunch → breakfast for existing rows)
         if (Array.isArray(p.meal_types_default) && p.meal_types_default.length > 0) {
-          setMealTypesDefault(p.meal_types_default as string[])
+          const normalized = (p.meal_types_default as string[]).map(t => t === 'brunch' ? 'breakfast' : t)
+          setMealTypesDefault(Array.from(new Set(normalized)))
         }
         if (p.meal_days_default && typeof p.meal_days_default === 'object') {
-          setMealDaysDefault(p.meal_days_default as Record<string, number>)
+          const raw = p.meal_days_default as Record<string, number>
+          const normalized: Record<string, number> = {}
+          for (const [k, v] of Object.entries(raw)) {
+            const key = k === 'brunch' ? 'breakfast' : k
+            normalized[key] = (normalized[key] ?? 0) + (v as number)
+          }
+          setMealDaysDefault(normalized)
         }
         // Parse health_goals into chips + free text
         const rawGoals = (p.health_goals as string | null) ?? ''

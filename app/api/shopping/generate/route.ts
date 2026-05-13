@@ -147,10 +147,9 @@ export async function POST(request: NextRequest) {
     recipeIngredients = recipes ?? []
   }
 
-  // 3. Aggregate ingredients
-  const agg: Record<string, {
-    name: string; quantity: number | null; unit: string | null; category: string
-  }> = {}
+  // 3. Aggregate ingredients — group by name first, then merge quantities
+  type IngEntry = { quantity: number | null; unit: string | null }
+  const nameGroups: Record<string, { displayName: string; category: string; entries: IngEntry[] }> = {}
 
   for (const recipe of recipeIngredients) {
     const ingredients = (recipe.ingredients ?? []) as Array<{
@@ -158,14 +157,29 @@ export async function POST(request: NextRequest) {
     }>
     for (const ing of ingredients) {
       const unit = normalizeUnit(ing.unit)
-      const qty = typeof ing.quantity === 'string' ? parseFloat(ing.quantity) || null : ing.quantity
-      const key = `${ing.name.toLowerCase().trim()}__${unit ?? ''}`
-      if (agg[key]) {
-        if (agg[key].quantity !== null && qty !== null) {
-          agg[key].quantity = agg[key].quantity! + qty
-        }
-      } else {
-        agg[key] = { name: ing.name, quantity: qty, unit, category: categorize(ing.name) }
+      const qty = typeof ing.quantity === 'string' ? parseFloat(ing.quantity) || null : (ing.quantity ?? null)
+      const nameKey = ing.name.toLowerCase().trim()
+      if (!nameGroups[nameKey]) {
+        nameGroups[nameKey] = { displayName: ing.name, category: categorize(ing.name), entries: [] }
+      }
+      nameGroups[nameKey].entries.push({ quantity: qty, unit })
+    }
+  }
+
+  const agg: Record<string, { name: string; quantity: number | null; unit: string | null; category: string }> = {}
+  for (const [nameKey, group] of Object.entries(nameGroups)) {
+    const units = Array.from(new Set(group.entries.map(e => e.unit)))
+    if (units.length === 1) {
+      const unit = units[0]
+      const allHaveQty = group.entries.every(e => e.quantity !== null)
+      const total = allHaveQty ? group.entries.reduce((s, e) => s + e.quantity!, 0) : null
+      agg[nameKey] = { name: group.displayName, quantity: total, unit, category: group.category }
+    } else {
+      agg[nameKey] = {
+        name: `${group.displayName} — multiple meals`,
+        quantity: null,
+        unit: null,
+        category: group.category,
       }
     }
   }

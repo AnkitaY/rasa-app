@@ -71,6 +71,7 @@ function getPrepAhead(raw: unknown): PrepAheadNew | null {
 
 function sectionLabel(mealType: string): string {
   if (mealType === 'dinner') return 'DINNERS THIS WEEK'
+  if (mealType === 'brunch' || mealType === 'breakfast') return 'BREAKFAST THIS WEEK'
   return `${mealType.toUpperCase()} THIS WEEK`
 }
 

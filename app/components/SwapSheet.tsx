@@ -103,7 +103,7 @@ export default function SwapSheet({
     setTimeout(reset, 320)
   }
 
-  async function fetchAlternatives(customText?: string) {
+  async function fetchAlternatives(customText?: string, isRetry = false) {
     if (!reason) return
 
     if (reason === 'missing_ingredient' && !missingIngredient.trim() && !customText) {
@@ -111,9 +111,11 @@ export default function SwapSheet({
       return
     }
 
-    setStep('loading')
-    setError('')
-    setShowIngredientError(false)
+    if (!isRetry) {
+      setStep('loading')
+      setError('')
+      setShowIngredientError(false)
+    }
 
     try {
       const res = await fetch('/api/meals/swap', {
@@ -132,6 +134,10 @@ export default function SwapSheet({
       setAlternatives(data.alternatives ?? [])
       setStep('alternatives')
     } catch {
+      if (!isRetry) {
+        await fetchAlternatives(customText, true)
+        return
+      }
       setError("Hmm, couldn't find alternatives. Give it one more try?")
       setStep('reason')
     }

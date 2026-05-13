@@ -344,9 +344,13 @@ export async function POST(request: NextRequest) {
   const bannedIngredients: string | null = prefs?.banned_ingredients ?? null
   const skill: string | null = prefs?.skill_level ?? null
   const budget: string | null = prefs?.weeknight_budget ?? null
-  const mealPrefs: Record<string, { prep_ahead: boolean; max_assembly_mins?: number }> =
+  const rawMealPrefs: Record<string, { prep_ahead: boolean; max_assembly_mins?: number }> =
     (prefs?.meal_prefs as Record<string, { prep_ahead: boolean; max_assembly_mins?: number }>) ??
-    { brunch: { prep_ahead: true, max_assembly_mins: 30 }, dinner: { prep_ahead: false } }
+    { breakfast: { prep_ahead: true, max_assembly_mins: 30 }, dinner: { prep_ahead: false } }
+  const mealPrefs: Record<string, { prep_ahead: boolean; max_assembly_mins?: number }> = { ...rawMealPrefs }
+  if (rawMealPrefs['brunch'] && !rawMealPrefs['breakfast']) {
+    mealPrefs['breakfast'] = rawMealPrefs['brunch']
+  }
   const healthGoals: string = (prefs?.health_goals as string) ?? 'high protein, balanced'
 
   // 2. Compute rolling planning window
@@ -356,11 +360,16 @@ export async function POST(request: NextRequest) {
   const remainingDays = getRemainingWeekDays(startDate)
   const weekStartDate = getWeekStartDate(startDate)
 
-  // 3. Resolve meal_plan — fall back to user defaults
-  const effectiveMealPlan: Record<string, number> =
+  // 3. Resolve meal_plan — fall back to user defaults; normalize 'brunch' → 'breakfast'
+  const rawMealPlan: Record<string, number> =
     meal_plan ??
     (prefs?.meal_days_default as Record<string, number>) ??
-    { brunch: 5, dinner: 2 }
+    { breakfast: 5, dinner: 2 }
+  const effectiveMealPlan: Record<string, number> = {}
+  for (const [k, v] of Object.entries(rawMealPlan)) {
+    const key = k === 'brunch' ? 'breakfast' : k
+    effectiveMealPlan[key] = (effectiveMealPlan[key] ?? 0) + v
+  }
 
   // 4. Fetch recipe bank — build candidate list per meal type (FEAT-003)
   const mealTypesNeeded = Object.entries(effectiveMealPlan)
@@ -381,7 +390,8 @@ export async function POST(request: NextRequest) {
   const candidatesPerType: Record<string, BankRecipe[]> = {}
   for (const mtype of mealTypesNeeded) {
     candidatesPerType[mtype] = bankRecipes.filter(
-      r => !r.meal_type || r.meal_type === mtype || r.meal_type === 'any'
+      r => !r.meal_type || r.meal_type === mtype || r.meal_type === 'any' ||
+        (mtype === 'breakfast' && r.meal_type === 'brunch')
     )
   }
   const candidateBlock = buildCandidateBlock(candidatesPerType, mealTypesNeeded)
@@ -395,13 +405,13 @@ export async function POST(request: NextRequest) {
 
   // 6. Build slot schedule instructions
   const mealTypeSlotsInfo: string[] = []
-  const brunchCount = effectiveMealPlan['brunch'] ?? 0
+  const breakfastCount = effectiveMealPlan['breakfast'] ?? 0
   const dinnerCount = effectiveMealPlan['dinner'] ?? 0
 
-  if (brunchCount > 0) {
-    const assigned = remainingDays.slice(0, Math.min(brunchCount, remainingDays.length))
+  if (breakfastCount > 0) {
+    const assigned = remainingDays.slice(0, Math.min(breakfastCount, remainingDays.length))
     mealTypeSlotsInfo.push(
-      `BRUNCH (${assigned.length} slots): assign to exactly these days in order: ${assigned.join(', ')}.`
+      `BREAKFAST (${assigned.length} slots): assign to exactly these days in order: ${assigned.join(', ')}.`
     )
   }
   if (dinnerCount > 0) {
@@ -410,7 +420,7 @@ export async function POST(request: NextRequest) {
     )
   }
   for (const [mtype, count] of Object.entries(effectiveMealPlan)) {
-    if (mtype !== 'brunch' && mtype !== 'dinner' && count > 0) {
+    if (mtype !== 'breakfast' && mtype !== 'dinner' && count > 0) {
       mealTypeSlotsInfo.push(
         `${mtype.toUpperCase()} (${count} slots): distribute across remaining days [${remainingDays.join(', ')}].`
       )
@@ -498,7 +508,7 @@ Respond with ONLY this JSON structure:
   "meals": [
     {
       "day": "Mon",
-      "meal_type": "brunch",
+      "meal_type": "breakfast",
       "recipe_name": "string",
       "reasoning": "string",
       "use_soon_priority": false,

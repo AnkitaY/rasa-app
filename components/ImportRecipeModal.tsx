@@ -130,6 +130,10 @@ export default function ImportRecipeModal({ open, onOpenChange, onImported }: Pr
         setSaveError(json.error || 'Something went wrong.')
         return
       }
+      if (!json.recipe?.id || typeof json.recipe?.name !== 'string') {
+        setSaveError('Recipe saved but something went wrong loading it. Reload to see it.')
+        return
+      }
       onImported({
         ...json.recipe,
         source_url: sourceUrl.trim() || null,

@@ -67,7 +67,7 @@ export default function MorningPage() {
     return (
       <main className="min-h-screen bg-background px-4 py-8 max-w-2xl mx-auto flex flex-col items-center justify-center gap-5">
         <CheckCircle2 className="w-16 h-16 text-green-500" />
-        <h2 className="text-xl font-bold">Brunch done!</h2>
+        <h2 className="text-xl font-bold">Breakfast done!</h2>
         {session?.brunch_recipe_name && (
           <p className="text-muted-foreground">{session.brunch_recipe_name} logged.</p>
         )}
@@ -117,8 +117,8 @@ export default function MorningPage() {
       <div className="border rounded-xl p-5 bg-card mb-6">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-1">Today&apos;s Brunch</p>
-            <h2 className="text-xl font-bold">{session.brunch_recipe_name ?? 'Brunch'}</h2>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-1">Today&apos;s Breakfast</p>
+            <h2 className="text-xl font-bold">{session.brunch_recipe_name ?? 'Breakfast'}</h2>
           </div>
           <div className="flex items-center gap-1 text-sm font-medium text-primary bg-primary/10 rounded-lg px-3 py-1.5 shrink-0">
             <Clock className="w-4 h-4" />
@@ -189,7 +189,7 @@ export default function MorningPage() {
         {isPending ? (
           <><span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />Marking…</>
         ) : (
-          <><CheckCircle2 className="w-5 h-5 mr-2" />Mark Brunch Done</>
+          <><CheckCircle2 className="w-5 h-5 mr-2" />Mark Breakfast Done</>
         )}
       </Button>
 

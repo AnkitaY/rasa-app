@@ -26,8 +26,8 @@ const DAY_LABELS: Record<string, string> = {
 
 const TODAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date().getDay()]
 
-const DEFAULT_MEAL_TYPES = ['brunch', 'dinner']
-const DEFAULT_MEAL_DAYS: Record<string, number> = { brunch: 5, dinner: 2 }
+const DEFAULT_MEAL_TYPES = ['breakfast', 'dinner']
+const DEFAULT_MEAL_DAYS: Record<string, number> = { breakfast: 5, dinner: 2 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -92,17 +92,21 @@ export default function GeneratePage() {
         if (!p) return
         // Pre-fill pantry
         if (p.last_pantry_input) setPantryInput(p.last_pantry_input)
-        // Pre-fill meal types from profile defaults
+        // Pre-fill meal types from profile defaults (normalize brunch → breakfast)
         if (Array.isArray(p.meal_types_default) && p.meal_types_default.length > 0) {
-          setMealTypes(p.meal_types_default as string[])
+          const normalized = (p.meal_types_default as string[]).map(t => t === 'brunch' ? 'breakfast' : t)
+          setMealTypes(Array.from(new Set(normalized)))
         }
-        // Pre-fill meal days from profile defaults
+        // Pre-fill meal days from profile defaults (normalize brunch → breakfast)
         if (p.meal_days_default && typeof p.meal_days_default === 'object') {
           const defaults = p.meal_days_default as Record<string, number>
           setMealDays(prev => {
             const merged: Record<string, number> = { ...prev }
             for (const [type, days] of Object.entries(defaults)) {
-              if (typeof days === 'number') merged[type] = days
+              if (typeof days === 'number') {
+                const key = type === 'brunch' ? 'breakfast' : type
+                merged[key] = (merged[key] ?? 0) + days
+              }
             }
             return merged
           })

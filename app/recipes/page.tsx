@@ -19,7 +19,6 @@ const TYPE_FILTERS = [
 const MEAL_FILTERS = [
   { value: 'any', label: 'Any' },
   { value: 'breakfast', label: 'Breakfast' },
-  { value: 'brunch', label: 'Brunch' },
   { value: 'lunch', label: 'Lunch' },
   { value: 'dinner', label: 'Dinner' },
 ]
@@ -83,7 +82,7 @@ export default function RecipesPage() {
   const filtered = useMemo(() => {
     return recipes.filter(r => {
       const q = search.toLowerCase()
-      const matchesSearch = !q || r.name.toLowerCase().includes(q)
+      const matchesSearch = !q || (r.name ?? '').toLowerCase().includes(q)
       const matchesType = typeFilter === 'All' || r.recipe_type === typeFilter
       const matchesMeal =
         mealFilter === 'any' || r.meal_type === mealFilter || r.meal_type === 'any'

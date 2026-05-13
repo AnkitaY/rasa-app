@@ -5,7 +5,6 @@ import { cn } from '@/lib/utils'
 
 const MEAL_TYPES = [
   { value: 'breakfast', label: 'Breakfast' },
-  { value: 'brunch',    label: 'Brunch'    },
   { value: 'lunch',     label: 'Lunch'     },
   { value: 'dinner',    label: 'Dinner'    },
 ] as const

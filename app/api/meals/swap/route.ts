@@ -138,7 +138,7 @@ Return ONLY valid JSON with no markdown:
   let aiText: string
   try {
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 5000,
       messages: [{ role: 'user', content: prompt }],
     })
@@ -189,22 +189,38 @@ export async function PATCH(request: NextRequest) {
 
   const { data: existingMeal } = await admin
     .from('meals')
-    .select('recipe_name, meal_type')
+    .select('recipe_name, meal_type, week_plan_id')
     .eq('id', meal_id)
     .single()
 
-  const oldName = existingMeal?.recipe_name ?? null
-  const mealType = existingMeal?.meal_type ?? 'dinner'
+  if (!existingMeal) {
+    return NextResponse.json({ error: 'Meal not found.' }, { status: 404 })
+  }
 
-  const { data: existingRecipe } = await admin
+  const oldName = existingMeal.recipe_name ?? null
+  const mealType = existingMeal.meal_type ?? 'dinner'
+
+  const { data: planRow } = await admin
+    .from('week_plans')
+    .select('anon_id')
+    .eq('id', existingMeal.week_plan_id)
+    .maybeSingle()
+
+  const anonId = planRow?.anon_id ?? null
+
+  const recipeQuery = admin
     .from('recipes')
     .select('id')
     .eq('name', chosen.name)
     .is('user_id', null)
-    .maybeSingle()
+
+  const { data: existingRecipe } = anonId
+    ? await recipeQuery.eq('anon_id', anonId).maybeSingle()
+    : await recipeQuery.maybeSingle()
 
   if (!existingRecipe) {
     await admin.from('recipes').insert({
+      anon_id: anonId,
       user_id: null,
       name: chosen.name,
       cuisine_type: chosen.cuisine_type,
@@ -217,6 +233,7 @@ export async function PATCH(request: NextRequest) {
       prep_ahead: chosen.prep_ahead,
       is_complete_meal: true,
       batch_cookable: false,
+      source: 'ai_generated',
       source_type: 'ai_generated',
       macros_per_serving: null,
       source_raw_text: null,
