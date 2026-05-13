@@ -200,6 +200,45 @@ Depends on: FEAT-002 (recipes in bank) + FEAT-001b (meal_type on recipes for fil
   - RECHECK RECOMMENDED before real founder use — run scripts/quality-check-s02.mjs again, target ≥ 16/20
   - See ops/QUALITY_CHECK_S02.md for full results + methodology
 
+---
+
+### STAGE 7 — Phase 1.5 bug fixes + label rename (S02 feedback sprint)
+No dependencies between items — run all in parallel.
+
+- [x] BUG-015: Swap replacement fails with "Hmm, couldn't find alternatives" | Priority: HIGH | From: pm-agent 2026-05-12
+  - done: 2026-05-13 | agent: engineering-agent
+  - AC: [x] Replacement returns a valid meal for all 4 swap reasons (model updated to claude-sonnet-4-6)
+       [x] Error message only shown after 2+ failed attempts, not on first try (silent retry in SwapSheet)
+       [x] PATCH route now fetches anon_id from week_plan so swapped recipes are correctly scoped
+
+- [x] BUG-016: Shopping list ingredients not deduplicated | Priority: HIGH | From: pm-agent 2026-05-12
+  - done: 2026-05-13 | agent: engineering-agent
+  - AC: [x] Same ingredient from multiple meals is merged into one line item (two-pass name-only aggregation)
+       [x] Quantities summed where units match
+       [x] Where units differ or are absent, merged as "name — multiple meals"
+       [x] Grouped by category unchanged
+
+- [x] BUG-017: Custom recipe import causes unrecoverable client-side crash | Priority: HIGH | From: pm-agent 2026-05-12
+  - done: 2026-05-13 | agent: engineering-agent
+  - AC: [x] Recipe import does not crash — null guard on json.recipe before calling onImported
+       [x] If error occurs: inline error in modal, modal stays open
+       [x] Null guard on r.name in recipes useMemo prevents TypeError crash
+       [x] User can dismiss, edit, and retry without page reload
+
+- [x] BUG-018: "Let's Cook" flow — cannot scroll to bottom to reach Next button | Priority: HIGH | From: pm-agent 2026-05-12
+  - done: 2026-05-13 | agent: engineering-agent
+  - AC: [x] User can reach the Next button on any screen height including 390px (min-h-0 added to scrollable div)
+       [x] Fix scroll behaviour — content unchanged
+
+- [x] ENG-RENAME-001: Rename "brunch" → "breakfast" — label change only | Priority: MED | From: pm-agent 2026-05-12
+  - done: 2026-05-13 | agent: engineering-agent
+  - AC: [x] No UI surface shows "Brunch" — all replaced with "Breakfast"
+       [x] Existing planned meals with meal_type='brunch' still render correctly (backward compat in sectionLabel + slot lookup)
+       [x] New plans generate with meal_type='breakfast'
+       [x] All filter chips, profile chips, planning form chips updated
+       [x] npm run build passes with no type errors
+  - Migration: supabase/migrations/20260513000001_rename_brunch_to_breakfast_defaults.sql — apply to production
+
 ## Parked — not this sprint
 
 - [ ] BUG-010: Cook time missing from planner cards | PARKED
