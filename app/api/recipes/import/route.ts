@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 const VALID_RECIPE_TYPES = ['main', 'side', 'salad', 'complete_meal'] as const
-const VALID_MEAL_TYPES = ['breakfast', 'brunch', 'lunch', 'dinner', 'any'] as const
+const VALID_MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'any'] as const
 
 type RecipeType = typeof VALID_RECIPE_TYPES[number]
 type MealType = typeof VALID_MEAL_TYPES[number]

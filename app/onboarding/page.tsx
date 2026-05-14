@@ -4,13 +4,20 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 
-const DIET_CHIPS = [
-  'Vegetarian',
-  'Halal',
-  'Vegan',
-  'Gluten-free',
-  'Dairy-free',
-  'None',
+interface Chip {
+  label: string
+  value: string
+}
+
+const DIET_CHIPS: Chip[] = [
+  { label: 'Vegetarian', value: 'vegetarian' },
+  { label: 'Vegan', value: 'vegan' },
+  { label: 'Halal', value: 'halal' },
+  { label: 'Gluten-free', value: 'gluten_free' },
+  { label: 'Dairy-free', value: 'dairy_free' },
+  { label: 'Nut-free', value: 'nut_free' },
+  { label: 'No red meat', value: 'no_red_meat' },
+  { label: 'No raw fish', value: 'no_raw_fish' },
 ]
 
 function ProgressPips({ current }: { current: 1 | 2 | 3 }) {
@@ -29,82 +36,73 @@ function ProgressPips({ current }: { current: 1 | 2 | 3 }) {
   )
 }
 
+function getAnonId(): string | null {
+  if (typeof window === 'undefined') return null
+  return localStorage.getItem('rasa_anon_id')
+}
+
 export default function OnboardingDietPage() {
   const router = useRouter()
   const [selected, setSelected] = useState<string[]>([])
   const [freeText, setFreeText] = useState('')
-  const isNone = selected.includes('None')
-  const canProceed = selected.length > 0 || freeText.trim().length > 0
+  const [saving, setSaving] = useState(false)
 
-  // Pre-fill from sessionStorage if user navigated back
+  // Pre-fill from saved preferences on mount
   useEffect(() => {
-    try {
-      const stored = sessionStorage.getItem('rasa_ob')
-      if (stored) {
-        const ob = JSON.parse(stored)
-        if (ob.dietary_rules !== undefined) {
-          // Reconstruct chip selection from stored text
-          if (ob.dietary_rules === 'None') {
-            setSelected(['None'])
-          } else if (ob.dietary_rules) {
-            setFreeText(ob.dietary_rules)
-          }
+    const anonId = getAnonId()
+    if (!anonId) return
+
+    fetch(`/api/preferences/get?anon_id=${encodeURIComponent(anonId)}`)
+      .then(r => r.json())
+      .then(({ preferences }) => {
+        if (!preferences) return
+        if (Array.isArray(preferences.dietary_flags) && preferences.dietary_flags.length > 0) {
+          setSelected(preferences.dietary_flags as string[])
         }
-      }
-    } catch { /* ignore */ }
+        if (typeof preferences.dietary_other === 'string' && preferences.dietary_other) {
+          setFreeText(preferences.dietary_other)
+        }
+      })
+      .catch(() => { /* ignore */ })
   }, [])
 
-  function toggleChip(chip: string) {
-    if (chip === 'None') {
-      setSelected(['None'])
-      setFreeText('')
-      return
-    }
-    setSelected(prev => {
-      const without = prev.filter(c => c !== 'None')
-      return without.includes(chip)
-        ? without.filter(c => c !== chip)
-        : [...without, chip]
-    })
+  function toggleChip(value: string) {
+    setSelected(prev =>
+      prev.includes(value)
+        ? prev.filter(v => v !== value)
+        : [...prev, value]
+    )
   }
 
-  function handleChipClick(chip: string) {
-    if (chip === 'None') {
-      toggleChip('None')
-      return
-    }
-    // Append chip label to textarea
-    toggleChip(chip)
-    setFreeText(prev => {
-      const label = chip
-      if (selected.includes(chip)) {
-        // Removing — strip from textarea
-        return prev
-          .replace(new RegExp(`,?\\s*${label}`, 'i'), '')
-          .replace(new RegExp(`${label}\\s*,?\\s*`, 'i'), '')
-          .trim()
-          .replace(/^,|,$/, '')
-          .trim()
-      } else {
-        // Adding
-        return prev ? `${prev}, ${label}` : label
-      }
-    })
-  }
+  async function handleNext() {
+    setSaving(true)
+    const anonId = getAnonId()
 
-  function handleNext() {
-    let dietary_rules: string | null = null
-    if (isNone) {
-      dietary_rules = null
-    } else if (freeText.trim()) {
-      dietary_rules = freeText.trim()
+    if (anonId) {
+      try {
+        await fetch('/api/preferences/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            anon_id: anonId,
+            dietary_flags: selected,
+            dietary_other: freeText.trim() || null,
+          }),
+        })
+      } catch { /* ignore save errors — proceed to next page */ }
     }
 
+    // Also persist to sessionStorage for downstream onboarding steps
     try {
       const existing = JSON.parse(sessionStorage.getItem('rasa_ob') || '{}')
-      sessionStorage.setItem('rasa_ob', JSON.stringify({ ...existing, dietary_rules }))
+      sessionStorage.setItem('rasa_ob', JSON.stringify({
+        ...existing,
+        dietary_flags: selected,
+        dietary_other: freeText.trim() || null,
+      }))
     } catch { /* ignore */ }
 
+    setSaving(false)
     router.push('/onboarding/who-for')
   }
 
@@ -116,80 +114,74 @@ export default function OnboardingDietPage() {
 
         {/* Heading */}
         <div className="mt-8 mb-8">
-          <p className="text-xs font-ui font-semibold text-p1-brown uppercase tracking-widest mb-2">
-            Question 1 of 3
-          </p>
-          <h1 className="text-2xl font-ui font-bold text-p1-dark leading-snug">
-            Anything we should never put on the menu?
+          <h1 className="text-2xl font-serif-display font-bold text-p1-dark leading-snug">
+            Any dietary rules we should always follow?
           </h1>
-          <p className="mt-2 text-sm text-p1-brown font-ui">
-            Tap to add, or just type below.
+          <p className="mt-2 text-sm font-ui text-p1-brown">
+            Pick everything that applies &mdash; or skip if you eat everything.
           </p>
         </div>
 
         {/* Chips */}
         <div className="flex flex-wrap gap-2 mb-6">
           {DIET_CHIPS.map(chip => {
-            const active = selected.includes(chip)
+            const active = selected.includes(chip.value)
             return (
               <button
-                key={chip}
-                onClick={() => handleChipClick(chip)}
+                key={chip.value}
+                onClick={() => toggleChip(chip.value)}
                 className={cn(
-                  'px-4 py-2 rounded-full text-sm font-ui font-medium border transition-all',
+                  'px-4 py-2 rounded-4xl text-sm font-ui font-medium transition-all',
                   active
-                    ? 'bg-p1-terra text-white border-p1-terra'
-                    : 'bg-p1-card text-p1-dark border-p1-border'
+                    ? 'bg-p1-terra text-white'
+                    : 'bg-p1-surface text-p1-dark'
                 )}
               >
-                {chip}
+                {chip.label}
               </button>
             )
           })}
         </div>
 
-        {/* Free-text */}
+        {/* "Anything else?" textarea */}
         <div className="space-y-1.5 mb-8">
-          <label className="text-xs font-ui font-semibold text-p1-brown uppercase tracking-wider">
-            Or describe your rules
+          <label className="text-sm font-ui font-medium text-p1-dark">
+            Anything else?
           </label>
           <textarea
             className={cn(
-              'w-full min-h-[100px] rounded-xl border px-4 py-3 text-sm font-ui text-p1-dark placeholder:text-p1-brown/40 focus:outline-none transition-colors resize-none leading-relaxed',
-              isNone
-                ? 'bg-p1-surface/40 border-p1-border-lt text-p1-brown/50 cursor-not-allowed'
-                : 'bg-p1-card border-p1-border focus:border-p1-terra'
+              'w-full min-h-[64px] rounded-lg border border-p1-border px-2.5 py-2 text-sm font-ui text-p1-dark',
+              'placeholder:text-p1-brown/50 focus:outline-none focus:ring-3 focus:ring-p1-terra/50',
+              'resize-none leading-relaxed bg-white'
             )}
-            placeholder="e.g. No pork, low FODMAP, allergic to nuts…"
-            value={isNone ? '' : freeText}
-            onChange={e => {
-              if (!isNone) setFreeText(e.target.value)
-            }}
-            disabled={isNone}
+            placeholder="e.g. no shellfish, low-sodium for a family member"
+            value={freeText}
+            onChange={e => setFreeText(e.target.value)}
           />
-          {isNone && (
-            <p className="text-xs text-p1-brown/60 font-ui">
-              Great — no restrictions. You can change this any time in your profile.
-            </p>
-          )}
         </div>
 
         {/* Spacer */}
         <div className="flex-1" />
 
-        {/* CTA */}
+        {/* Next button — always enabled */}
         <button
           onClick={handleNext}
-          disabled={!canProceed}
-          className={cn(
-            'w-full py-4 rounded-xl text-sm font-ui font-semibold tracking-wide transition-opacity',
-            canProceed
-              ? 'bg-p1-terra text-white active:opacity-80'
-              : 'bg-p1-terra/40 text-white/60 cursor-not-allowed'
-          )}
+          disabled={saving}
+          className="w-full h-10 rounded-lg bg-p1-terra text-white text-sm font-ui font-semibold active:opacity-80 disabled:opacity-60"
         >
-          Next →
+          Next &rarr;
         </button>
+
+        {/* Skip for now */}
+        <div className="mt-3 flex justify-center">
+          <button
+            onClick={handleNext}
+            disabled={saving}
+            className="text-sm font-ui text-p1-brown underline disabled:opacity-60"
+          >
+            Skip for now
+          </button>
+        </div>
       </div>
     </main>
   )

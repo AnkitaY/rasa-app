@@ -19,7 +19,7 @@ const CUISINE_OPTIONS = [
   'Continental', 'Chinese', 'Italian', 'Mexican', 'Thai', 'Other',
 ]
 
-const MEAL_OPTIONS = ['', 'brunch', 'dinner', 'snack', 'breakfast', 'lunch']
+const MEAL_OPTIONS = ['', 'breakfast', 'lunch', 'dinner', 'snack']
 
 // ─── types ────────────────────────────────────────────────────────────────────
 

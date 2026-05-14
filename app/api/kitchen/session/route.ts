@@ -35,7 +35,7 @@ export async function POST() {
     const tomorrowName = DAYS[(now.getDay() + 1) % 7]
 
     const dinnerSlot = slots.find((s) => s.day === todayName && s.meal_type === 'dinner' && !s.eating_out)
-    const brunchSlot = slots.find((s) => s.day === tomorrowName && (s.meal_type === 'brunch' || s.meal_type === 'breakfast') && !s.eating_out)
+    const brunchSlot = slots.find((s) => s.day === tomorrowName && ((s.meal_type as string) === 'brunch' || s.meal_type === 'breakfast') && !s.eating_out)
 
     if (!dinnerSlot?.recipe_id && !brunchSlot?.recipe_id) {
       return NextResponse.json({ error: 'No recipes found for tonight or tomorrow breakfast.' }, { status: 400 })

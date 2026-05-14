@@ -39,7 +39,7 @@ export interface Recipe {
 
 export interface PlanSlot {
   day: string
-  meal_type: 'breakfast' | 'brunch' | 'lunch' | 'dinner'
+  meal_type: 'breakfast' | 'lunch' | 'dinner'
   recipe_id: string | null
   recipe_name: string
   protein_g: number
@@ -201,7 +201,7 @@ export interface Meal {
   id: string
   week_plan_id: string
   day: string           // 'Mon'–'Sun'
-  meal_type: 'breakfast' | 'brunch' | 'lunch' | 'dinner'
+  meal_type: 'breakfast' | 'lunch' | 'dinner'
   recipe_name: string
   eating_out: boolean
   serve_with: string | null

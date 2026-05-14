@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
   const servings = prefs?.who_cooking_for === 'family_young_kids' ? 4
     : prefs?.who_cooking_for === 'family_teens' ? 5 : 2
 
-  const mealTypeLine = effectiveMealType === 'brunch' || effectiveMealType === 'breakfast'
+  const mealTypeLine = effectiveMealType === 'breakfast'
     ? `This is a ${effectiveMealType} meal — high protein, assembles quickly (≤ 30 min). Must include a clear protein source.`
     : `This is a ${effectiveMealType} meal — complete meal (protein + carb + veg).`
 

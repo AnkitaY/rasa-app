@@ -24,6 +24,11 @@ interface PrepAheadItem {
   time_sensitive: boolean
 }
 
+interface PrepAheadV2 {
+  tonight: string
+  tomorrow: string
+}
+
 interface Recipe {
   id: string
   name: string
@@ -34,10 +39,90 @@ interface Recipe {
   ingredients: Ingredient[]
   steps: string[]
   steps_v2: StepV2[] | null
-  prep_ahead: PrepAheadItem[] | null
+  prep_ahead: PrepAheadV2 | PrepAheadItem[] | null
+  assembly_time_mins: number | null
   is_complete_meal: boolean
   source_type: string
   source_url: string | null
+}
+
+// ── Prep ahead helpers ────────────────────────────────────────────────────────
+
+function isPrepAheadV2(pa: unknown): pa is PrepAheadV2 {
+  return typeof pa === 'object' && pa !== null && !Array.isArray(pa)
+    && typeof (pa as PrepAheadV2).tonight === 'string'
+}
+
+function isSingleStep(text: string): boolean {
+  return !text.includes('\n') && !/^\d+\./.test(text.trim())
+}
+
+// ── PrepAheadSection component ────────────────────────────────────────────────
+
+function PrepAheadSection({ recipe }: { recipe: Recipe }) {
+  if (!isPrepAheadV2(recipe.prep_ahead)) return null
+
+  const pa = recipe.prep_ahead
+  const assemblyMins = recipe.assembly_time_mins
+
+  // Build intro line
+  let introLine: string | null = null
+  if (assemblyMins === null) {
+    introLine = 'Do this tonight and tomorrow morning is easy.'
+  } else if (assemblyMins > 0) {
+    introLine = `Do this tonight and tomorrow morning takes ${assemblyMins} minutes.`
+  }
+  // assemblyMins === 0 → omit intro line entirely
+
+  const tonightText = pa.tonight
+  const single = isSingleStep(tonightText)
+
+  // Parse multi-step lines
+  const stepLines = single
+    ? []
+    : tonightText
+        .split('\n')
+        .map(l => l.trim())
+        .filter(Boolean)
+        .map(l => l.replace(/^\d+\.\s*/, ''))
+
+  return (
+    <>
+      <hr className="border-p1-surface" />
+      <section className="pt-5">
+        <h2 className="text-base font-ui font-semibold text-p1-dark mb-2">
+          Prep ahead
+        </h2>
+
+        {introLine && (
+          <p className="text-sm font-ui text-p1-brown mb-3">
+            {introLine}
+          </p>
+        )}
+
+        {single ? (
+          <p className="text-sm font-ui text-p1-dark leading-relaxed">
+            {tonightText}
+          </p>
+        ) : (
+          <ol className="space-y-2 mb-3">
+            {stepLines.map((line, i) => (
+              <li key={i} className="flex gap-2.5 text-sm font-ui text-p1-dark leading-relaxed">
+                <span className="shrink-0 font-semibold text-p1-terra">{i + 1}.</span>
+                <span>{line}</span>
+              </li>
+            ))}
+          </ol>
+        )}
+
+        {assemblyMins !== null && assemblyMins > 0 && (
+          <p className="text-xs font-ui text-p1-brown mt-3">
+            Assembly time tomorrow: {assemblyMins} min
+          </p>
+        )}
+      </section>
+    </>
+  )
 }
 
 // ── Tip config ────────────────────────────────────────────────────────────────
@@ -138,7 +223,6 @@ export default function RecipeDetailPage() {
   const router = useRouter()
   const [recipe, setRecipe] = useState<Recipe | null>(null)
   const [loading, setLoading] = useState(true)
-  const [prepExpanded, setPrepExpanded] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -149,11 +233,6 @@ export default function RecipeDetailPage() {
           const { recipe: data } = await res.json()
           if (data) {
             setRecipe(data as Recipe)
-            // Auto-expand prep ahead if any item is time_sensitive
-            const prepItems = (data.prep_ahead ?? []) as PrepAheadItem[]
-            if (prepItems.some(p => p.time_sensitive)) {
-              setPrepExpanded(true)
-            }
           }
         }
       } catch {
@@ -197,9 +276,6 @@ export default function RecipeDetailPage() {
     : []
   const legacySteps: string[] = Array.isArray(recipe.steps) ? recipe.steps : []
   const useV2 = stepsV2.length > 0
-
-  const prepItems: PrepAheadItem[] = Array.isArray(recipe.prep_ahead) ? recipe.prep_ahead : []
-  const hasPrepAhead = prepItems.length > 0
 
   const tags = [
     recipe.cuisine_type,
@@ -260,50 +336,10 @@ export default function RecipeDetailPage() {
         </button>
       </div>
 
-      <div className="px-5 pb-24 space-y-6 pt-5">
-
-        {/* ── Prep ahead ──────────────────────────────────────────────────── */}
-        {hasPrepAhead && (
-          <section className="rounded-2xl bg-p1-card border border-p1-border-lt overflow-hidden">
-            <button
-              onClick={() => setPrepExpanded(e => !e)}
-              className="w-full flex items-center justify-between px-4 py-4"
-            >
-              <span className="text-sm font-ui font-bold text-p1-dark">
-                ⏰ Prep ahead
-              </span>
-              <span className="text-p1-brown text-sm">{prepExpanded ? '▲' : '▼'}</span>
-            </button>
-
-            {prepExpanded && (
-              <div className="px-4 pb-4 space-y-2 border-t border-p1-border-lt pt-3">
-                {prepItems.map((item, i) => (
-                  <div key={i} className="flex items-start gap-2.5">
-                    <span className={cn(
-                      'shrink-0 w-4 h-4 rounded-full mt-0.5 flex items-center justify-center text-[9px]',
-                      item.time_sensitive
-                        ? 'bg-p1-terra text-white'
-                        : 'bg-p1-surface text-p1-brown'
-                    )}>
-                      {item.time_sensitive ? '!' : '·'}
-                    </span>
-                    <p className="text-sm font-ui text-p1-dark leading-relaxed">
-                      {item.task}
-                      {item.time_sensitive && (
-                        <span className="ml-1.5 text-[10px] font-semibold text-p1-terra uppercase tracking-wide">
-                          time-sensitive
-                        </span>
-                      )}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-        )}
+      <div className="px-4 pb-24 pt-5">
 
         {/* ── Ingredients ─────────────────────────────────────────────────── */}
-        <section>
+        <section className="mb-6">
           <h2 className="text-base font-ui font-bold text-p1-dark mb-3">
             Ingredients
           </h2>
@@ -318,8 +354,11 @@ export default function RecipeDetailPage() {
           </div>
         </section>
 
+        {/* ── Prep ahead ──────────────────────────────────────────────────── */}
+        <PrepAheadSection recipe={recipe} />
+
         {/* ── Method ──────────────────────────────────────────────────────── */}
-        <section>
+        <section className="mt-6">
           <h2 className="text-base font-ui font-bold text-p1-dark mb-4">
             Method
           </h2>
@@ -352,7 +391,7 @@ export default function RecipeDetailPage() {
 
         {/* ── Source attribution ───────────────────────────────────────────── */}
         {recipe.source_url && (
-          <p className="text-xs font-ui text-p1-brown/60 text-center">
+          <p className="mt-6 text-xs font-ui text-p1-brown/60 text-center">
             Imported from{' '}
             <a
               href={recipe.source_url}

@@ -44,7 +44,7 @@ interface RecipeInput {
 
 interface MealOutput {
   day: string
-  meal_type: 'breakfast' | 'brunch' | 'lunch' | 'dinner'
+  meal_type: 'breakfast' | 'lunch' | 'dinner'
   recipe_name: string
   reasoning: string
   use_soon_priority: boolean
@@ -340,7 +340,15 @@ export async function POST(request: NextRequest) {
   const servings = servingsFor(whoFor)
   const primaryCuisine: string = prefs?.primary_cuisine ?? 'varied'
   const secondaryCuisines: string[] = prefs?.secondary_cuisines ?? []
-  const dietaryRules: string | null = prefs?.dietary_rules ?? null
+  const rawDietaryRules: string | null = prefs?.dietary_rules ?? null
+  const flagsText = (prefs?.dietary_flags as string[] ?? [])
+    .map(f => {
+      if (f === 'no_red_meat') return 'no beef, lamb, pork, venison, or red meat'
+      if (f === 'no_raw_fish') return 'no sushi, sashimi, ceviche, or raw fish preparations'
+      return f.replace('_', '-')
+    })
+    .join('; ')
+  const dietaryRules: string | null = [rawDietaryRules, flagsText].filter(Boolean).join('; ') || null
   const bannedIngredients: string | null = prefs?.banned_ingredients ?? null
   const skill: string | null = prefs?.skill_level ?? null
   const budget: string | null = prefs?.weeknight_budget ?? null
@@ -611,7 +619,7 @@ Return the complete corrected JSON with all meals.`
 
         for (const mealOut of streamedMeals) {
           const recipeName = mealOut.recipe?.name ?? mealOut.recipe_name
-          const mealType = mealOut.meal_type ?? 'dinner'
+          const mealType = (mealOut.meal_type ?? 'dinner') as string
 
           // Bank recipe selected by AI — use existing ID, do not re-save
           // Validate against the known set to guard against hallucinated IDs
@@ -644,7 +652,7 @@ Return the complete corrected JSON with all meals.`
                 is_complete_meal: true,
                 source: 'ai_generated',
                 source_type: 'ai_generated',
-                meal_type: mealType,
+                meal_type: (mealType as string) === 'brunch' ? 'breakfast' : mealType,
                 prep_friendly: isPrep,
                 assembly_time_mins: r.assembly_time_mins ?? null,
               })
@@ -658,7 +666,7 @@ Return the complete corrected JSON with all meals.`
                 user_id: null,
                 name: recipeName,
                 cuisine_type: r.cuisine_type,
-                meal_type: mealType,
+                meal_type: (mealType as string) === 'brunch' ? 'breakfast' : mealType,
                 cook_time_minutes: r.cook_time_minutes,
                 servings: r.servings,
                 ingredients: r.ingredients,
@@ -689,7 +697,7 @@ Return the complete corrected JSON with all meals.`
         // 10. Build slots array
         const slotsArray: PlanSlot[] = streamedMeals.map(m => ({
           day: m.day,
-          meal_type: (m.meal_type ?? 'dinner') as PlanSlot['meal_type'],
+          meal_type: ((m.meal_type as string) === 'brunch' ? 'breakfast' : (m.meal_type ?? 'dinner')) as PlanSlot['meal_type'],
           recipe_id: recipeIdMap[m.recipe_name ?? m.recipe?.name] ?? null,
           recipe_name: m.recipe_name,
           protein_g: 0,

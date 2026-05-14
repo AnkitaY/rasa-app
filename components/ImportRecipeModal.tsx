@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog'
 
 type RecipeType = 'main' | 'side' | 'salad' | 'complete_meal'
-type MealOccasion = 'breakfast' | 'brunch' | 'lunch' | 'dinner' | 'any'
+type MealOccasion = 'breakfast' | 'lunch' | 'dinner' | 'any'
 
 const RECIPE_TYPES: { value: RecipeType; label: string }[] = [
   { value: 'main', label: 'Main' },
@@ -23,7 +23,6 @@ const RECIPE_TYPES: { value: RecipeType; label: string }[] = [
 
 const MEAL_OCCASIONS: { value: MealOccasion; label: string }[] = [
   { value: 'breakfast', label: 'Breakfast' },
-  { value: 'brunch', label: 'Brunch' },
   { value: 'lunch', label: 'Lunch' },
   { value: 'dinner', label: 'Dinner' },
   { value: 'any', label: 'Any' },

@@ -2,10 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import Link from 'next/link'
 import { getAnonId } from '@/lib/anon'
 import { MealTypeChips } from '@/app/components/MealTypeChips'
-import { DaysStepper, MEAL_TYPE_DEFAULTS, MEAL_TYPE_RANGES } from '@/app/components/DaysStepper'
+import { DaySelectionWidget, isDaySelectionValid } from '@/app/components/DaySelectionWidget'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -17,46 +16,61 @@ type StreamedMeal = {
   use_soon_priority?: boolean
 }
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+type SlotState = 'pending' | 'generating' | 'done'
 
-const DAY_LABELS: Record<string, string> = {
-  Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday',
-  Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday', Sun: 'Sunday',
+type SlotRow = {
+  day: string          // 'Mon', 'Tue', etc.
+  mealType: string     // 'breakfast', 'lunch', 'dinner'
+  state: SlotState
+  recipeName?: string
 }
 
-const TODAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date().getDay()]
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const DAY_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const MEAL_TYPE_ORDER = ['breakfast', 'lunch', 'dinner']
+
+const DAY_LABELS: Record<string, string> = {
+  Mon: 'Mon', Tue: 'Tue', Wed: 'Wed',
+  Thu: 'Thu', Fri: 'Fri', Sat: 'Sat', Sun: 'Sun',
+}
+
+const MEAL_CHIP_LABELS: Record<string, string> = {
+  breakfast: 'Breakfast',
+  lunch: 'Lunch',
+  dinner: 'Dinner',
+}
+
+const ROTATING_LABELS = [
+  "Picking recipes you’ll actually want to make.",
+  "Making sure nothing repeats too soon.",
+  "Thinking about what goes well together.",
+]
 
 const DEFAULT_MEAL_TYPES = ['breakfast', 'dinner']
-const DEFAULT_MEAL_DAYS: Record<string, number> = { breakfast: 5, dinner: 2 }
+const DEFAULT_DAY_SELECTIONS: Record<string, string[]> = {
+  breakfast: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+  dinner: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function buildLoadingMessages(useSoon: string, weekContext: string): string[] {
-  const msgs: string[] = ['Building around what you\'ve got…']
-
-  if (useSoon.trim()) {
-    const firstItem = useSoon.split(/[,\n]/)[0].trim()
-    msgs.push(`Getting that ${firstItem} into Monday before it goes…`)
-  }
-
-  if (weekContext.trim()) {
-    const dayMatch = weekContext.match(
-      /\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b/i
-    )
-    if (dayMatch) {
-      msgs.push(`Keeping ${dayMatch[0]} light for you…`)
-    } else {
-      msgs.push('Reading your week and making it work…')
+/** Build ordered slot list from day selections (Mon Bfast → Mon Dinner → Tue Bfast → ...) */
+function buildExpectedSlots(daySelections: Record<string, string[]>): SlotRow[] {
+  const slots: SlotRow[] = []
+  for (const day of DAY_ORDER) {
+    for (const mealType of MEAL_TYPE_ORDER) {
+      if ((daySelections[mealType] ?? []).includes(day)) {
+        slots.push({ day, mealType, state: 'pending' })
+      }
     }
   }
-
-  msgs.push('Almost there — putting the finishing touches on your week…')
-  return msgs
+  return slots
 }
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
-type PageState = 'idle' | 'loading' | 'streaming' | 'done'
+type PageState = 'idle' | 'generating' | 'success' | 'error'
 
 export default function GeneratePage() {
   const router = useRouter()
@@ -65,23 +79,27 @@ export default function GeneratePage() {
 
   const [pageState, setPageState] = useState<PageState>('idle')
 
-  // ── Meal type + days state ──────────────────────────────────────────────────
+  // ── Form state ─────────────────────────────────────────────────────────────
   const [mealTypes, setMealTypes] = useState<string[]>(DEFAULT_MEAL_TYPES)
-  const [mealDays, setMealDays] = useState<Record<string, number>>(DEFAULT_MEAL_DAYS)
-
-  // ── Existing fields ─────────────────────────────────────────────────────────
+  const [daySelections, setDaySelections] = useState<Record<string, string[]>>(DEFAULT_DAY_SELECTIONS)
   const [pantryInput, setPantryInput] = useState('')
   const [weekContext, setWeekContext] = useState('')
   const [useSoon, setUseSoon] = useState('')
+  const [formError, setFormError] = useState('')
 
   // ── Generation state ────────────────────────────────────────────────────────
-  const [loadingMsg, setLoadingMsg] = useState('')
-  const [meals, setMeals] = useState<StreamedMeal[]>([])
-  const [weekPlanId, setWeekPlanId] = useState('')
-  const [visibleCount, setVisibleCount] = useState(0)
-  const [error, setError] = useState('')
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const mealIndexRef = useRef(0)
+  const [slots, setSlots] = useState<SlotRow[]>([])
+  const [rotatingLabelIdx, setRotatingLabelIdx] = useState(0)
+  const [labelVisible, setLabelVisible] = useState(true)
+  const [successVisible, setSuccessVisible] = useState(false)
+  const [listVisible, setListVisible] = useState(true)
+  const [showFallbackBtn, setShowFallbackBtn] = useState(false)
+  const [partialError, setPartialError] = useState('')
+  const [completedCount, setCompletedCount] = useState(0)
+
+  const rotateIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Pre-fill from preferences on mount
   useEffect(() => {
@@ -90,88 +108,93 @@ export default function GeneratePage() {
       .then(r => r.json())
       .then(({ preferences: p }) => {
         if (!p) return
-        // Pre-fill pantry
         if (p.last_pantry_input) setPantryInput(p.last_pantry_input)
-        // Pre-fill meal types from profile defaults (normalize brunch → breakfast)
         if (Array.isArray(p.meal_types_default) && p.meal_types_default.length > 0) {
           const normalized = (p.meal_types_default as string[]).map(t => t === 'brunch' ? 'breakfast' : t)
           setMealTypes(Array.from(new Set(normalized)))
-        }
-        // Pre-fill meal days from profile defaults (normalize brunch → breakfast)
-        if (p.meal_days_default && typeof p.meal_days_default === 'object') {
-          const defaults = p.meal_days_default as Record<string, number>
-          setMealDays(prev => {
-            const merged: Record<string, number> = { ...prev }
-            for (const [type, days] of Object.entries(defaults)) {
-              if (typeof days === 'number') {
-                const key = type === 'brunch' ? 'breakfast' : type
-                merged[key] = (merged[key] ?? 0) + days
-              }
-            }
-            return merged
-          })
         }
       })
       .catch(() => {/* allow through */})
   }, [])
 
-  // Handle meal type toggle — initialise days value when a new type is added
-  function handleMealTypeChange(selected: string[]) {
-    setMealTypes(selected)
-    // initialise any newly-added type with its default day count
-    setMealDays(prev => {
-      const next = { ...prev }
-      for (const type of selected) {
-        if (next[type] === undefined) {
-          next[type] = MEAL_TYPE_DEFAULTS[type] ?? 3
-        }
-      }
-      return next
-    })
-  }
-
-  function handleDaysChange(type: string, value: number) {
-    const { min, max } = MEAL_TYPE_RANGES[type] ?? { min: 1, max: 7 }
-    setMealDays(prev => ({ ...prev, [type]: Math.min(max, Math.max(min, value)) }))
-  }
-
-  // Rotate loading messages while in the initial loading state
+  // Rotate sub-labels every 4s with 200ms cross-fade
   useEffect(() => {
-    if (pageState !== 'loading') {
-      if (intervalRef.current) clearInterval(intervalRef.current)
+    if (pageState !== 'generating') {
+      if (rotateIntervalRef.current) clearInterval(rotateIntervalRef.current)
       return
     }
-    const msgs = buildLoadingMessages(useSoon, weekContext)
-    let i = 0
-    setLoadingMsg(msgs[0])
-    intervalRef.current = setInterval(() => {
-      i = (i + 1) % msgs.length
-      setLoadingMsg(msgs[i])
+    rotateIntervalRef.current = setInterval(() => {
+      setLabelVisible(false)
+      setTimeout(() => {
+        setRotatingLabelIdx(i => (i + 1) % ROTATING_LABELS.length)
+        setLabelVisible(true)
+      }, 200)
     }, 4000)
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current)
+      if (rotateIntervalRef.current) clearInterval(rotateIntervalRef.current)
     }
-  }, [pageState, useSoon, weekContext])
+  }, [pageState])
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (rotateIntervalRef.current) clearInterval(rotateIntervalRef.current)
+      if (navTimerRef.current) clearTimeout(navTimerRef.current)
+      if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current)
+    }
+  }, [])
+
+  function handleMealTypeChange(selected: string[]) {
+    setMealTypes(selected)
+  }
+
+  /** Called when all slots reach State 3 — trigger success transition then auto-nav */
+  function triggerSuccess(totalSlots: number) {
+    setCompletedCount(totalSlots)
+    // Fade list out
+    setListVisible(false)
+    setTimeout(() => {
+      setPageState('success')
+      setSuccessVisible(true)
+      // Auto-navigate after 1.5s
+      navTimerRef.current = setTimeout(() => {
+        router.push('/planner')
+      }, 1500)
+      // Fallback button after 3s
+      fallbackTimerRef.current = setTimeout(() => {
+        setShowFallbackBtn(true)
+      }, 3000)
+    }, 200)
+  }
 
   async function handleGenerate() {
     if (!pantryInput.trim() || mealTypes.length === 0) return
-    setError('')
-    setMeals([])
-    setVisibleCount(0)
-    setWeekPlanId('')
-    mealIndexRef.current = 0
-    setPageState('loading')
+    if (!isDaySelectionValid(mealTypes, daySelections)) return
+
+    setFormError('')
+    setPartialError('')
+    setShowFallbackBtn(false)
+    setSuccessVisible(false)
+    setListVisible(true)
+    setRotatingLabelIdx(0)
+    setLabelVisible(true)
+    setCompletedCount(0)
+
+    // Compute expected slots before submit
+    const expectedSlots = buildExpectedSlots(daySelections)
+    setSlots(expectedSlots)
+    setPageState('generating')
 
     const anonId = getAnonId()
     const today = new Date().toISOString().split('T')[0]
 
-    // Build meal_plan from selected types + their day counts
     const mealPlan: Record<string, number> = {}
-    for (const type of mealTypes) {
-      mealPlan[type] = mealDays[type] ?? MEAL_TYPE_DEFAULTS[type] ?? 3
+    for (const [type, days] of Object.entries(daySelections)) {
+      mealPlan[type] = days.length
     }
 
     let gotDone = false
+    let slotsRef = expectedSlots.map(s => ({ ...s }))
 
     try {
       const res = await fetch('/api/plans/generate-v2', {
@@ -184,6 +207,7 @@ export default function GeneratePage() {
           use_soon: useSoon.trim() || undefined,
           plan_start_date: today,
           meal_plan: mealPlan,
+          day_selections: daySelections,
         }),
       })
 
@@ -219,18 +243,44 @@ export default function GeneratePage() {
           }
 
           if (event.type === 'meal' && event.meal) {
-            const idx = mealIndexRef.current++
-            setMeals(prev => [...prev, event.meal as StreamedMeal])
-            setPageState('streaming')
-            setTimeout(() => setVisibleCount(c => Math.max(c, idx + 1)), 50)
+            const meal = event.meal
+            // Find matching pending slot (by day + meal_type)
+            const idx = slotsRef.findIndex(
+              s => s.day === meal.day &&
+                   s.mealType === (meal.meal_type ?? '') &&
+                   s.state !== 'done'
+            )
+            if (idx !== -1) {
+              slotsRef = slotsRef.map((s, i) =>
+                i === idx ? { ...s, state: 'done' as SlotState, recipeName: meal.recipe_name } : s
+              )
+              setSlots([...slotsRef])
+            }
           } else if (event.type === 'done') {
             gotDone = true
-            setWeekPlanId(event.week_plan_id ?? '')
+            // Reconcile any remaining slots from the done payload
             if (event.meals && event.meals.length > 0) {
-              setMeals(event.meals)
-              setVisibleCount(event.meals.length)
+              for (const meal of event.meals) {
+                const idx = slotsRef.findIndex(
+                  s => s.day === meal.day &&
+                       s.mealType === (meal.meal_type ?? '') &&
+                       s.state !== 'done'
+                )
+                if (idx !== -1) {
+                  slotsRef = slotsRef.map((s, i) =>
+                    i === idx ? { ...s, state: 'done' as SlotState, recipeName: meal.recipe_name } : s
+                  )
+                }
+              }
+              setSlots([...slotsRef])
             }
-            setPageState('done')
+            const allDone = slotsRef.every(s => s.state === 'done')
+            if (allDone) {
+              triggerSuccess(slotsRef.length)
+            } else {
+              // Partial failure — show partial error
+              setPartialError('Couldn’t find a recipe for some slots — try again?')
+            }
           } else if (event.type === 'error') {
             throw new Error(event.message ?? 'Unknown error')
           }
@@ -241,144 +291,114 @@ export default function GeneratePage() {
         throw new Error('Plan generation did not complete')
       }
     } catch {
-      setPageState('idle')
-      setMeals([])
-      setVisibleCount(0)
-      mealIndexRef.current = 0
-      setError('Hmm, something went wrong. Give it one more try?')
+      setPageState('error')
     }
   }
 
-  // ── Loading screen ──────────────────────────────────────────────────────────
-  if (pageState === 'loading') {
+  // ── Success screen ──────────────────────────────────────────────────────────
+  if (pageState === 'success') {
     return (
       <main className="min-h-screen bg-p1-cream flex flex-col items-center justify-center px-6 pb-24">
-        <div className="text-center max-w-xs">
-          <div className="flex justify-center gap-2 mb-8">
-            {[0, 1, 2].map(i => (
-              <span
-                key={i}
-                className="w-2.5 h-2.5 rounded-full bg-p1-terra"
-                style={{
-                  animation: 'bounce 1.2s ease-in-out infinite',
-                  animationDelay: `${i * 0.2}s`,
-                }}
-              />
-            ))}
-          </div>
-          <p className="text-lg font-ui font-semibold text-p1-dark leading-snug min-h-[3.5rem] transition-all duration-500">
-            {loadingMsg}
+        <div
+          style={{
+            opacity: successVisible ? 1 : 0,
+            transition: 'opacity 200ms ease-in',
+          }}
+          className="text-center"
+        >
+          <p className="font-serif-display text-2xl font-bold text-p1-dark">
+            Your week is sorted. ✓
           </p>
-          <p className="mt-3 text-sm text-p1-brown font-ui">
-            First meal appears in a few seconds — full recipes take a little longer.
+          <p className="mt-2 text-sm text-p1-brown font-ui">
+            {completedCount} meal{completedCount !== 1 ? 's' : ''}, zero decisions left.
           </p>
+          {showFallbackBtn && (
+            <button
+              onClick={() => router.push('/planner')}
+              className="mt-6 w-full py-4 rounded-xl bg-p1-terra text-white text-sm font-ui font-semibold tracking-wide active:opacity-80 transition-opacity"
+            >
+              Go to Planner
+            </button>
+          )}
         </div>
-
-        <style>{`
-          @keyframes bounce {
-            0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
-            40% { transform: translateY(-10px); opacity: 1; }
-          }
-        `}</style>
       </main>
     )
   }
 
-  // ── Reveal screen (streaming + done) ─────────────────────────────────────────
-  if (pageState === 'streaming' || pageState === 'done') {
-    const n = meals.length
-    const isSaving = pageState === 'streaming'
+  // ── Error screen ────────────────────────────────────────────────────────────
+  if (pageState === 'error') {
     return (
-      <main className="min-h-screen bg-p1-cream pb-32">
-        <div className={`px-5 py-3 flex items-center gap-2 ${isSaving ? 'bg-p1-dark' : 'bg-p1-forest'}`}>
-          {isSaving ? (
-            <p className="text-white text-sm font-ui">Building your plan…</p>
-          ) : (
-            <>
-              <span className="text-white text-sm">✓</span>
-              <p className="text-white text-sm font-ui">
-                These recipes have been saved to your bank.
-              </p>
-            </>
-          )}
-        </div>
+      <main className="min-h-screen bg-p1-cream px-4 pt-8 pb-24">
+        <p className="font-serif-display text-xl font-bold text-p1-dark">
+          Hmm, something didn&apos;t work.
+        </p>
+        <p className="mt-2 text-sm text-p1-brown font-ui">
+          Give it one more try?
+        </p>
+        <button
+          onClick={() => {
+            setPageState('idle')
+            setSlots([])
+          }}
+          className="mt-6 w-full py-4 rounded-xl bg-p1-terra text-white text-sm font-ui font-semibold tracking-wide active:opacity-80 transition-opacity"
+        >
+          Try again
+        </button>
+      </main>
+    )
+  }
 
-        <div className="px-5 pt-7 pb-4">
-          <h1 className="text-2xl font-ui font-bold text-p1-dark">
-            Your week is sorted. 🎉
-          </h1>
-          <p className="mt-1 text-sm text-p1-brown font-ui">
-            {n} meal{n !== 1 ? 's' : ''}{isSaving ? ' so far…' : ', zero decision fatigue.'}
+  // ── Generating screen (loading + streaming rows) ─────────────────────────────
+  if (pageState === 'generating') {
+    const allDone = slots.length > 0 && slots.every(s => s.state === 'done')
+    return (
+      <main className="min-h-screen bg-p1-cream pb-24">
+        {/* Header */}
+        <div className="pt-8 px-4 pb-4">
+          <p className="font-serif-display text-xl font-bold text-p1-dark">
+            Rasa is sorting your week...
+          </p>
+          <p
+            className="mt-1 text-sm text-p1-brown font-ui"
+            style={{
+              opacity: labelVisible ? 1 : 0,
+              transition: 'opacity 200ms ease-in-out',
+            }}
+          >
+            {ROTATING_LABELS[rotatingLabelIdx]}
           </p>
         </div>
 
-        <div className="px-5 space-y-3">
-          {meals.map((meal, i) => {
-            const isToday = meal.day === TODAY_ABBR
-            const isVisible = i < visibleCount
-            return (
-              <div
-                key={`${meal.day}-${i}`}
-                style={{
-                  opacity: isVisible ? 1 : 0,
-                  transform: isVisible ? 'translateY(0)' : 'translateY(20px)',
-                  transition: 'opacity 400ms ease-out, transform 400ms ease-out',
-                  borderLeft: meal.use_soon_priority ? '3px solid #C4522A' : undefined,
-                }}
-                className="bg-p1-card rounded-2xl p-4 shadow-sm"
+        {/* Slot rows */}
+        <div
+          className="px-4 space-y-3"
+          style={{
+            opacity: listVisible && !allDone ? 1 : 0,
+            transition: 'opacity 200ms ease-out',
+          }}
+        >
+          {slots.map((slot, i) => (
+            <SlotRowItem key={`${slot.day}-${slot.mealType}-${i}`} slot={slot} />
+          ))}
+
+          {/* Partial error + continue link */}
+          {partialError && (
+            <div className="pt-2 space-y-2">
+              <p className="text-sm text-p1-brown font-ui">{partialError}</p>
+              <button
+                onClick={() => router.push('/planner')}
+                className="text-sm text-p1-brown font-ui underline active:opacity-60"
               >
-                <div className="flex items-center gap-2 mb-1">
-                  <span className={`text-xs font-ui font-semibold uppercase tracking-wider ${isToday ? 'text-p1-terra' : 'text-p1-brown'}`}>
-                    {isToday ? 'Today — ' : ''}{DAY_LABELS[meal.day] ?? meal.day}
-                    {meal.meal_type && (
-                      <span className="ml-1.5 normal-case font-normal text-p1-brown/70">
-                        · {meal.meal_type}
-                      </span>
-                    )}
-                    {meal.use_soon_priority && (
-                      <span className="ml-1.5 text-p1-terra">· Use soon</span>
-                    )}
-                  </span>
-                </div>
-
-                <p className="text-base font-ui font-bold text-p1-dark leading-snug">
-                  {meal.recipe_name}
-                </p>
-
-                {meal.reasoning && (
-                  <p className="mt-1.5 text-sm font-ui text-p1-brown italic leading-relaxed">
-                    {meal.reasoning}
-                  </p>
-                )}
-              </div>
-            )
-          })}
-        </div>
-
-        <div className="px-5 pt-6 space-y-3">
-          <button
-            onClick={() => router.push('/planner')}
-            className="w-full py-4 rounded-xl bg-p1-terra text-white text-sm font-ui font-semibold tracking-wide active:opacity-80 transition-opacity"
-          >
-            Go to planner →
-          </button>
-          <Link
-            href="/shopping"
-            className="block w-full py-3 rounded-xl border border-p1-border bg-p1-card text-p1-dark text-sm font-ui font-medium text-center active:opacity-80"
-          >
-            🛒 Shopping list ready →
-          </Link>
-          {weekPlanId && (
-            <p className="text-center text-xs text-p1-brown/60 font-ui pt-1">
-              Plan saved · week of {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-            </p>
+                Continue with what we have
+              </button>
+            </div>
           )}
         </div>
       </main>
     )
   }
 
-  // ── Input form ──────────────────────────────────────────────────────────────
+  // ── Input form (idle) ───────────────────────────────────────────────────────
   return (
     <main className="min-h-screen bg-p1-cream">
       <div className="px-5 pt-12 pb-4">
@@ -408,23 +428,11 @@ export default function GeneratePage() {
           />
         </div>
 
-        {/* ── Field 2 — Days stepper per selected meal type ───────────────────── */}
-        {mealTypes.length > 0 && (
-          <div className="space-y-1 bg-p1-card rounded-2xl px-4 py-2">
-            {mealTypes.map(type => (
-              <DaysStepper
-                key={type}
-                label={`How many ${type} days this week?`}
-                mealType={type}
-                value={mealDays[type] ?? MEAL_TYPE_DEFAULTS[type] ?? 3}
-                onChange={value => handleDaysChange(type, value)}
-              />
-            ))}
-            <p className="text-xs font-ui text-p1-brown/60 pt-1 pb-1">
-              Just this week — you can change it every time you plan.
-            </p>
-          </div>
-        )}
+        {/* ── Field 2 — Day selection widget ──────────────────────────────────── */}
+        <DaySelectionWidget
+          selectedMealTypes={mealTypes}
+          onChange={setDaySelections}
+        />
 
         {/* ── Field 3 — Pantry (required, terra border) ──────────────────────── */}
         <div className="space-y-1.5">
@@ -476,16 +484,16 @@ export default function GeneratePage() {
         </div>
 
         {/* ── Error ──────────────────────────────────────────────────────────── */}
-        {error && (
+        {formError && (
           <p className="text-sm text-red-600 font-ui bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-            {error}
+            {formError}
           </p>
         )}
 
         {/* ── CTA ────────────────────────────────────────────────────────────── */}
         <button
           onClick={handleGenerate}
-          disabled={!pantryInput.trim()}
+          disabled={!pantryInput.trim() || !isDaySelectionValid(mealTypes, daySelections)}
           className="w-full py-4 rounded-xl bg-p1-terra text-white text-sm font-ui font-semibold tracking-wide disabled:opacity-40 transition-opacity active:opacity-80"
         >
           Build my week →
@@ -496,5 +504,59 @@ export default function GeneratePage() {
         </p>
       </div>
     </main>
+  )
+}
+
+// ── SlotRowItem ───────────────────────────────────────────────────────────────
+
+function SlotRowItem({ slot }: { slot: SlotRow }) {
+  const dayLabel = DAY_LABELS[slot.day] ?? slot.day
+  const chipLabel = MEAL_CHIP_LABELS[slot.mealType] ?? slot.mealType
+
+  return (
+    <div className="flex items-center gap-3 py-1">
+      {/* Day label — fixed 52px */}
+      <span
+        className="text-sm font-ui font-medium text-p1-dark shrink-0"
+        style={{ width: 52 }}
+      >
+        {dayLabel}
+      </span>
+
+      {/* Meal chip */}
+      <span className="bg-p1-surface text-p1-brown text-xs font-ui px-2.5 py-1 rounded-full shrink-0">
+        {chipLabel}
+      </span>
+
+      {/* State content */}
+      {slot.state === 'pending' && (
+        <span
+          className="h-4 rounded-sm bg-p1-surface animate-pulse"
+          style={{ width: 140 }}
+        />
+      )}
+      {slot.state === 'generating' && (
+        <span className="text-sm italic text-p1-brown font-ui animate-pulse">
+          Finding...
+        </span>
+      )}
+      {slot.state === 'done' && (
+        <span className="flex items-center gap-1.5 min-w-0">
+          <span className="text-sm font-ui font-medium text-p1-dark truncate">
+            {slot.recipeName}
+          </span>
+          <span
+            className="text-sm shrink-0"
+            style={{
+              color: '#2D5B3F',
+              opacity: 1,
+              transition: 'opacity 100ms ease-in',
+            }}
+          >
+            ✓
+          </span>
+        </span>
+      )}
+    </div>
   )
 }
