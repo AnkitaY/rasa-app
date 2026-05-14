@@ -26,7 +26,7 @@ Spawn a `pm-agent` subagent. Provide the design doc path, the founder's sprint s
 
 ## Step 2 — lead-engineer evaluation
 
-Spawn a `lead-engineer` subagent. Pass the sprint plan path and these instructions:
+Spawn a `lead-engineer` subagent. (The sprint plan path is deterministic: `ops/sprints/SPRINT-[name]-[YYYY-MM-DD].md` where `[name]` and `[YYYY-MM-DD]` are the values the pm-agent used when saving the file. Derive this from the pm-agent's output or from the pattern.) Pass the sprint plan path and these instructions:
 
 > "Read the sprint plan at [path]. Evaluate it against these criteria:
 > 1. Task sequencing: no task depends on a later task (check all predecessor relationships)
@@ -44,7 +44,7 @@ Track loop count starting at 0.
 
 If NEEDS_REVISION:
 1. Increment loop count.
-2. If loop count >= 2: stop. Present to founder with outstanding issues.
+2. If loop count >= 3: stop. Present to founder with the latest NEEDS_REVISION lines from lead-engineer and the sprint plan path.
 3. Spawn `pm-agent` subagent with the sprint plan path + all feedback items. Instruct it to revise the plan at the same path.
 4. Return to Step 2 — re-run lead-engineer evaluation.
 
@@ -52,7 +52,7 @@ If NEEDS_REVISION:
 
 When approved:
 - Show the founder:
-  - Sprint plan path (`ops/sprints/SPRINT-[name]-[date].md`)
+  - Sprint plan path (`ops/sprints/SPRINT-[name]-[YYYY-MM-DD].md`)
   - Total tasks in the sprint
   - A 5-bullet summary: what's in scope, total complexity, any flagged risks
 - Next step prompt: "Ready to execute? Open a lead-engineer session and invoke `/feature-execution-skill` with the first feature name from SPRINT.md."
