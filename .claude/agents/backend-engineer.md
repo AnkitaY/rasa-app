@@ -7,7 +7,7 @@ description: >
   fixing API or database bugs, and any server-side feature implementation.
 model: claude-sonnet-4-6
 tools: [Read, Write, Edit, Bash, Glob]
-skills: [supabase-patterns, rasa-conventions]
+skills: [supabase-patterns, rasa-conventions, test-driven-development, systematic-debugging]
 ---
 You implement backend features for Rasa.
 Stack: Next.js 14.2.35 API Routes + Supabase (PostgreSQL) + @anthropic-ai/sdk.
@@ -45,3 +45,9 @@ Before any task: Read CLAUDE.md + docs/ENGINEERING_CONTEXT.md + SPRINT.md.
 8. Commit directly to main: `git add <files> && git commit -m "fix/feat/chore: [description]"`
 9. Push: `git push origin master`
 10. Verify Vercel deployment succeeded at https://rasa-app-woad.vercel.app/
+
+## When receiving a task via feature-execution-skill
+
+Use the `superpowers:test-driven-development` skill. Write the failing test first (Vitest, mock `createAdminClient()` and the Anthropic SDK), run it to confirm it fails, implement the minimal code to make it pass, verify green, then return to the orchestrator. Do not return until `npm run build` passes.
+
+If stuck on a bug for more than 30 minutes: invoke the `superpowers:systematic-debugging` skill before escalating. Systematic debugging before escalation — never escalate a bug you haven't run through the full protocol.
