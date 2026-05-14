@@ -36,7 +36,7 @@ Spawn a `pm-agent` subagent. Pass the design doc path and these exact instructio
 
 Spawn a `ux-agent` subagent. Pass the design doc path and these exact instructions:
 
-> "Read the design doc at [path]. Also read docs/BRAND_GUIDE.md. Evaluate against these criteria:
+> "Read the design doc at [path]. Also read docs/BRAND_GUIDE.md. If docs/BRAND_GUIDE.md does not exist, proceed without it and skip criterion 3. Evaluate against these criteria:
 > 1. Every user-facing flow is named and described
 > 2. No interaction leaves the user without feedback
 > 3. Copy and tone match Brand Guide principles
@@ -52,9 +52,9 @@ Track loop count starting at 0.
 
 If either evaluator returned NEEDS_REVISION:
 1. Increment loop count.
-2. If loop count > 3: stop. Present the spec to the founder with a summary of all outstanding issues. Do not loop further.
+2. If loop count >= 3: stop. Present the spec to the founder with a summary of all outstanding issues. Do not loop further.
 3. Incorporate ALL feedback items into the design doc. Save the updated file to the same path.
-4. Return to Step 2 (re-run both evaluators).
+4. Return to Step 2 — re-run BOTH pm-agent and ux-agent, regardless of which one returned NEEDS_REVISION.
 
 ## Step 5 — Present to founder
 
@@ -63,5 +63,4 @@ When both evaluators return APPROVED:
   - Final spec path
   - Number of revision loops completed
   - A 3-bullet summary of the main changes made across iterations
-  - Any open questions flagged by evaluators during review (even if they approved)
 - Next step prompt: "Ready to move to sprint planning? Use `/sprint-planning-skill` with this path."
