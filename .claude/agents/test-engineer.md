@@ -29,3 +29,27 @@ Rasa-specific notes:
 - anon_id is always a UUID string — use a fixed test UUID like '00000000-0000-0000-0000-000000000001'
 
 Handoff: FROM: test-engineer | TESTS: [X passed / X failed — fix these] | NEXT: founder review or merge
+
+## E2E testing (via qa-skill — Phase 4)
+
+When invoked by `qa-skill`:
+- You receive a feature/sprint name and exact acceptance criteria text.
+- Write one Playwright E2E test per AC line. Test name = AC text normalized to snake_case.
+- Tests run against `localhost:3000` (dev server is already running — do not start it).
+- No hardcoded flows — every test must be traceable to an AC.
+- Run all tests after writing. For each failure, classify it as one of:
+  - **code bug** — wrong behavior, crash, API error, data not persisting/loading
+  - **UX issue** — confusing flow, missing feedback, bad copy, wrong interaction
+  - **product ambiguity** — AC is underspecified, behavior is debatable
+- Report format per failing test:
+  ```
+  FAIL: [test name]
+  Type: [code bug | UX issue | product ambiguity]
+  Detail: [what happened vs what was expected]
+  File: [test file path]
+  ```
+- After local tests pass: run a smoke test of these 3 flows against `https://rasa-app-woad.vercel.app/`:
+  1. Plan generation (generate a meal plan from scratch)
+  2. Onboarding (complete onboarding for a new anon user)
+  3. Meal marking (mark a meal as cooked with a family verdict)
+- Report Vercel smoke results separately: PASS / FAIL per flow.
