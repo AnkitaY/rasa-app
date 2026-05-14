@@ -34,7 +34,7 @@ Lead-engineer implements directly. Follow TDD where applicable.
 After each implementation, run these checks **in order**:
 
 ### Check A: Code review
-Spawn a `code-reviewer` subagent with the diff (list changed files and their full updated content).
+Spawn a `code-reviewer` subagent. To get the diff: ask the engineer subagent to return a list of all files it modified; read their current content and pass it to the code-reviewer along with the file paths.
 - If **NEEDS_CHANGES**: pass issues back to the original engineer subagent. Re-implement. Increment code-review cycle count for this task.
 - If code-review cycle count > 2 without PASS: escalate (see Escalation Format below). Continue to next task.
 - If **PASS**: proceed to Check B.
@@ -57,7 +57,7 @@ After all tasks for the feature complete:
 1. Update `SPRINT.md`: change `- [ ]` to `- [x]` for each completed task.
 2. Commit: `git add <all changed files> && git commit -m "feat: [feature name] — [one line summary]"`
 3. Push: `git push origin master`
-4. Append to `ops/DAILY_LOG.md`: `- [DATE] [lead-engineer] main [feature name] — feature complete. Tasks: N completed, N escalated.`
+4. Append to `ops/DAILY_LOG.md`: `- [DATE] [lead-engineer] master [feature name] — feature complete. Tasks: N completed, N escalated.`
 5. Report to founder: feature name, tasks completed, any items in NEEDS_FOUNDER.md.
 
 ## Escalation Format
