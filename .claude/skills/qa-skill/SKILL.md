@@ -27,17 +27,20 @@ Spawn a `test-engineer` subagent. Provide:
 >
 > Report Vercel smoke results separately."
 
+If any Vercel smoke test fails: classify using the same Step 2 routing rules. Vercel-specific failures (env var missing in production, deployment artifact issue) are code bugs — route to backend-engineer.
+
 ## Step 2 — Route failures
 
 For each failing test, classify and route:
 
-**Code bug** (wrong behavior, crash, API error, data not persisting/loading correctly):
+**Code bug** (wrong behavior, crash, API error, data not persisting/loading correctly — rule: if the behavior is *absent or broken*, it's a code bug):
 - Spawn `backend-engineer` or `frontend-engineer` subagent (API/DB failures → backend; render/interaction failures → frontend)
 - Provide: failing test name, failure output, relevant source file paths
 - Engineer fixes and returns
 - Mark test for retest
+- If the engineer returns without a fix (needs more context, cannot resolve): write to `ops/NEEDS_FOUNDER.md` as a product ambiguity entry and pause on this test.
 
-**UX issue** (confusing flow, missing feedback state, bad copy, wrong interaction model):
+**UX issue** (confusing flow, missing feedback state, bad copy, wrong interaction model — rule: if the behavior *exists but is confusing or unclear*, it's a UX issue):
 - Spawn `ux-agent` subagent with: failing test name + description of observed behavior vs the AC
 - ux-agent returns a specific, implementable fix (targeted change, not a redesign)
 - Spawn `frontend-engineer` subagent to implement the fix
