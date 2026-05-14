@@ -98,7 +98,12 @@ All other token definitions and typography specs in UX-025 are approved.
 - Stored value: `no_red_meat`
 - Position: after Nut-free in the chip list
 
-Rationale: the founder's household does not eat red meat or processed meats. This is a standing rule that applies to every generated meal, making it concrete enough to be a chip (not free-text). The AI plan engine can act on it reliably.
+**Add "No raw fish" as an 8th chip:**
+- Display label: `No raw fish`
+- Stored value: `no_raw_fish`
+- Position: after No red meat in the chip list
+
+Rationale: the founder's household does not eat red meat, processed meats, or raw fish. Both are standing rules that apply to every generated meal — concrete enough for the AI plan engine to act on reliably (no sushi, sashimi, ceviche, steak tartare, etc.).
 
 **Processed food handling:** the founder's preference to avoid processed food is covered by:
 1. The "Other" free-text field (e.g. "no processed meats, packaged sauces")
