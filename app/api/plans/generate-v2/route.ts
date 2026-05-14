@@ -63,14 +63,98 @@ interface BankRecipe {
   steps_v2: unknown
 }
 
+// ── Mock data (MOCK_AI=true in .env.local) ───────────────────────────────────
+
+const MOCK_BREAKFASTS = [
+  { name: 'Masala Omelette with Toast', cuisine: 'Indian', protein: 'eggs', carb: 'bread', time: 15 },
+  { name: 'Poha with Peanuts', cuisine: 'Indian', protein: 'peanuts', carb: 'poha', time: 20 },
+  { name: 'Avocado Toast with Poached Eggs', cuisine: 'Western', protein: 'eggs', carb: 'bread', time: 15 },
+  { name: 'Moong Dal Chilla', cuisine: 'Indian', protein: 'moong dal', carb: 'dal', time: 25 },
+  { name: 'Greek Yogurt Parfait with Granola', cuisine: 'Western', protein: 'yogurt', carb: 'granola', time: 10 },
+]
+
+const MOCK_LUNCHES = [
+  { name: 'Dal Tadka with Jeera Rice', cuisine: 'Indian', protein: 'dal', carb: 'rice', time: 30 },
+  { name: 'Paneer Bhurji with Roti', cuisine: 'Indian', protein: 'paneer', carb: 'roti', time: 25 },
+  { name: 'Chicken and Hummus Wrap', cuisine: 'Mediterranean', protein: 'chicken', carb: 'wrap', time: 20 },
+]
+
+const MOCK_DINNERS = [
+  { name: 'Butter Chicken with Basmati Rice', cuisine: 'Indian', protein: 'chicken', carb: 'rice', time: 40 },
+  { name: 'Rajma Masala with Steamed Rice', cuisine: 'Indian', protein: 'rajma', carb: 'rice', time: 45 },
+  { name: 'Paneer Tikka Masala with Naan', cuisine: 'Indian', protein: 'paneer', carb: 'naan', time: 35 },
+  { name: 'Egg Curry with Rice', cuisine: 'Indian', protein: 'eggs', carb: 'rice', time: 30 },
+  { name: 'Grilled Lemon Herb Chicken with Vegetables', cuisine: 'Western', protein: 'chicken', carb: 'vegetables', time: 35 },
+  { name: 'Chana Masala with Bhatura', cuisine: 'Indian', protein: 'chana', carb: 'bhatura', time: 40 },
+  { name: 'Palak Paneer with Roti', cuisine: 'Indian', protein: 'paneer', carb: 'roti', time: 35 },
+]
+
+function buildMockMeal(
+  day: string,
+  mealType: 'breakfast' | 'lunch' | 'dinner',
+  index: number,
+): MealOutput {
+  const pool =
+    mealType === 'breakfast' ? MOCK_BREAKFASTS
+    : mealType === 'lunch' ? MOCK_LUNCHES
+    : MOCK_DINNERS
+  const m = pool[index % pool.length]
+  return {
+    day,
+    meal_type: mealType,
+    recipe_name: m.name,
+    reasoning: `Good pick for ${day} — quick, filling, and uses what you have.`,
+    use_soon_priority: false,
+    protein_source: m.protein,
+    carb_base: m.carb,
+    bank_recipe_id: null,
+    recipe: {
+      name: m.name,
+      cuisine_type: m.cuisine,
+      cook_time_minutes: m.time,
+      servings: 4,
+      ingredients: [
+        { name: 'Main ingredient', quantity: 200, unit: 'g' },
+        { name: 'Spices', quantity: 1, unit: 'tbsp' },
+        { name: 'Oil', quantity: 1, unit: 'tbsp' },
+      ],
+      steps_v2: [
+        { instruction: 'Prep all ingredients.' },
+        { instruction: 'Cook on medium heat for the required time.' },
+        { instruction: 'Season to taste and serve hot.' },
+      ],
+      prep_ahead: [],
+      is_complete_meal: true,
+    },
+  }
+}
+
+function buildMockMeals(
+  daySelections: Record<string, string[]>,
+): MealOutput[] {
+  const meals: MealOutput[] = []
+  const counters: Record<string, number> = {}
+
+  for (const mealType of ['breakfast', 'lunch', 'dinner'] as const) {
+    const days = daySelections[mealType] ?? []
+    for (const day of days) {
+      const i = counters[mealType] ?? 0
+      meals.push(buildMockMeal(day, mealType, i))
+      counters[mealType] = i + 1
+    }
+  }
+
+  return meals
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function getRemainingWeekDays(planStartDate: string): string[] {
   const date = new Date(planStartDate + 'T00:00:00')
   const dow = date.getDay() // 0=Sun, 1=Mon…6=Sat
-  const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-  if (dow === 0) return weekDays // Sunday → full Mon–Sat window
-  return weekDays.slice(dow - 1) // Mon=0…Sat=5
+  const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+  if (dow === 0) return weekDays // Sunday → full Mon–Sun window
+  return weekDays.slice(dow - 1) // Mon=slice(0)…Sat=slice(5)→['Sat','Sun']
 }
 
 function getWeekStartDate(planStartDate: string): string {
@@ -311,13 +395,14 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const { anon_id, pantry_input, week_context, use_soon, plan_start_date, meal_plan } = body as {
+  const { anon_id, pantry_input, week_context, use_soon, plan_start_date, meal_plan, day_selections } = body as {
     anon_id: string
     pantry_input: string
     week_context?: string
     use_soon?: string
     plan_start_date?: string
     meal_plan?: Record<string, number>
+    day_selections?: Record<string, string[]>
   }
 
   if (!anon_id || typeof anon_id !== 'string') {
@@ -417,20 +502,22 @@ export async function POST(request: NextRequest) {
   const dinnerCount = effectiveMealPlan['dinner'] ?? 0
 
   if (breakfastCount > 0) {
-    const assigned = remainingDays.slice(0, Math.min(breakfastCount, remainingDays.length))
+    const assigned = day_selections?.['breakfast'] ?? remainingDays.slice(0, Math.min(breakfastCount, remainingDays.length))
     mealTypeSlotsInfo.push(
       `BREAKFAST (${assigned.length} slots): assign to exactly these days in order: ${assigned.join(', ')}.`
     )
   }
   if (dinnerCount > 0) {
+    const dinnerDays = day_selections?.['dinner'] ?? remainingDays
     mealTypeSlotsInfo.push(
-      `DINNER (${dinnerCount} slots): choose ${dinnerCount} day(s) from [${remainingDays.join(', ')}] based on week context. Busy days → simpler meals (≤30 min total). Occasion days → more involved.`
+      `DINNER (${dinnerCount} slots): choose ${dinnerCount} day(s) from [${dinnerDays.join(', ')}] based on week context. Busy days → simpler meals (≤30 min total). Occasion days → more involved.`
     )
   }
   for (const [mtype, count] of Object.entries(effectiveMealPlan)) {
     if (mtype !== 'breakfast' && mtype !== 'dinner' && count > 0) {
+      const days = day_selections?.[mtype] ?? remainingDays
       mealTypeSlotsInfo.push(
-        `${mtype.toUpperCase()} (${count} slots): distribute across remaining days [${remainingDays.join(', ')}].`
+        `${mtype.toUpperCase()} (${count} slots): distribute across days [${days.join(', ')}].`
       )
     }
   }
@@ -552,29 +639,40 @@ Respond with ONLY this JSON structure:
         controller.enqueue(encoder.encode(JSON.stringify(obj) + '\n'))
 
       try {
-        // First generation pass
-        const claudeStream = anthropic.messages.stream({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 8192,
-          system: systemPrompt,
-          messages: [{ role: 'user', content: userPrompt }],
-        })
-
-        let accumulated = ''
-        let cursor = -1
         let streamedMeals: MealOutput[] = []
+        let accumulated = ''
 
-        for await (const event of claudeStream) {
-          if (
-            event.type === 'content_block_delta' &&
-            event.delta.type === 'text_delta'
-          ) {
-            accumulated += event.delta.text
-            const result = extractNextMeals(accumulated, cursor)
-            cursor = result.cursor
-            for (const meal of result.meals) {
-              send({ type: 'meal', meal })
-              streamedMeals.push(meal)
+        if (process.env.MOCK_AI === 'true') {
+          // Mock mode — stream fake meals with delays, no Anthropic call
+          const mockMeals = buildMockMeals(day_selections ?? {})
+          for (const meal of mockMeals) {
+            await new Promise(r => setTimeout(r, 700))
+            send({ type: 'meal', meal })
+            streamedMeals.push(meal)
+          }
+        } else {
+          // First generation pass
+          const claudeStream = anthropic.messages.stream({
+            model: 'claude-sonnet-4-6',
+            max_tokens: 8192,
+            system: systemPrompt,
+            messages: [{ role: 'user', content: userPrompt }],
+          })
+
+          let cursor = -1
+
+          for await (const event of claudeStream) {
+            if (
+              event.type === 'content_block_delta' &&
+              event.delta.type === 'text_delta'
+            ) {
+              accumulated += event.delta.text
+              const result = extractNextMeals(accumulated, cursor)
+              cursor = result.cursor
+              for (const meal of result.meals) {
+                send({ type: 'meal', meal })
+                streamedMeals.push(meal)
+              }
             }
           }
         }
@@ -585,8 +683,10 @@ Respond with ONLY this JSON structure:
           return
         }
 
-        // 8. Post-generation validation — re-prompt once if any check fails
-        const validation = validatePlan(streamedMeals, prepAheadTypes, use_soon)
+        // 8. Post-generation validation (skipped in mock mode)
+        const validation = process.env.MOCK_AI === 'true'
+          ? { valid: true, issues: [] }
+          : validatePlan(streamedMeals, prepAheadTypes, use_soon)
 
         if (!validation.valid) {
           const fixPrompt = `The plan you generated has the following issues. Fix ONLY these issues, keep everything else the same, and return the complete corrected plan in the same JSON format:

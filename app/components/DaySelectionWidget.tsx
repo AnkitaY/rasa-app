@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react'
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const
 
 const MEAL_TYPE_LABELS: Record<string, string> = {
-  breakfast: 'Bfast',
+  breakfast: 'Breakfast',
   lunch: 'Lunch',
   dinner: 'Dinner',
 }

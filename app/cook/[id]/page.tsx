@@ -231,7 +231,7 @@ export default function CookModePage() {
       </div>
 
       {/* ── Navigation ──────────────────────────────────────────────────────── */}
-      <div className="px-5 py-4 bg-p1-card border-t border-p1-border-lt shrink-0 flex gap-3">
+      <div className="px-5 pt-4 pb-24 bg-p1-card border-t border-p1-border-lt shrink-0 flex gap-3">
         <button
           onClick={() => setStep(s => s - 1)}
           disabled={isFirst}

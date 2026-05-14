@@ -148,24 +148,55 @@ Respond with ONLY this JSON:
   }
 }`
 
-  // 3. Call Claude
+  // 3. Call Claude (or return mock data)
   let generated: GeneratedMeal
-  try {
-    const msg = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 2048,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: userPrompt }],
-    })
+  if (process.env.MOCK_AI === 'true') {
+    const mockNames: Record<string, string> = {
+      breakfast: 'Masala Omelette with Toast',
+      lunch: 'Dal Tadka with Jeera Rice',
+      dinner: 'Butter Chicken with Basmati Rice',
+    }
+    const name = mockNames[meal_type] ?? 'Quick Stir Fry'
+    generated = {
+      recipe_name: name,
+      reasoning: `Good pick for ${day} — quick, filling, and uses what you have.`,
+      recipe: {
+        name,
+        cuisine_type: 'Indian',
+        cook_time_minutes: 30,
+        servings,
+        ingredients: [
+          { name: 'Main ingredient', quantity: 200, unit: 'g' },
+          { name: 'Spices', quantity: 1, unit: 'tbsp' },
+          { name: 'Oil', quantity: 1, unit: 'tbsp' },
+        ],
+        steps_v2: [
+          { instruction: 'Prep all ingredients.' },
+          { instruction: 'Cook on medium heat for the required time.' },
+          { instruction: 'Season to taste and serve hot.' },
+        ],
+        prep_ahead: null,
+        assembly_time_mins: undefined,
+      },
+    }
+  } else {
+    try {
+      const msg = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 2048,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }],
+      })
 
-    const rawText = msg.content
-      .filter(b => b.type === 'text')
-      .map(b => (b as { type: 'text'; text: string }).text)
-      .join('')
+      const rawText = msg.content
+        .filter(b => b.type === 'text')
+        .map(b => (b as { type: 'text'; text: string }).text)
+        .join('')
 
-    generated = JSON.parse(rawText) as GeneratedMeal
-  } catch {
-    return NextResponse.json({ error: 'Failed to generate meal.' }, { status: 500 })
+      generated = JSON.parse(rawText) as GeneratedMeal
+    } catch {
+      return NextResponse.json({ error: 'Failed to generate meal.' }, { status: 500 })
+    }
   }
 
   if (!generated.recipe_name || !generated.recipe) {

@@ -135,6 +135,27 @@ Return ONLY valid JSON with no markdown:
   ]
 }`
 
+  if (process.env.MOCK_AI === 'true') {
+    const mockAlts: Record<string, string[]> = {
+      breakfast: ['Poha with Peanuts', 'Moong Dal Chilla', 'Greek Yogurt Parfait with Granola'],
+      lunch: ['Dal Tadka with Jeera Rice', 'Paneer Bhurji with Roti', 'Chicken and Hummus Wrap'],
+      dinner: ['Rajma Masala with Steamed Rice', 'Egg Curry with Rice', 'Palak Paneer with Roti'],
+    }
+    const names = mockAlts[effectiveMealType] ?? mockAlts['dinner']
+    return NextResponse.json({
+      alternatives: names.map((name, i) => ({
+        name,
+        reasoning: `A solid swap — different protein, same effort level.`,
+        cuisine_type: i === 2 ? 'Western' : 'Indian',
+        cook_time_minutes: 25 + i * 5,
+        servings,
+        ingredients: [{ name: 'Main ingredient', quantity: 200, unit: 'g' }],
+        steps_v2: [{ instruction: 'Cook and serve.' }],
+        prep_ahead: [],
+      })),
+    })
+  }
+
   let aiText: string
   try {
     const message = await anthropic.messages.create({

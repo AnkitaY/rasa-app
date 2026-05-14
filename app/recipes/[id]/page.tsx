@@ -44,6 +44,7 @@ interface Recipe {
   is_complete_meal: boolean
   source_type: string
   source_url: string | null
+  raw_text: string | null
 }
 
 // ── Prep ahead helpers ────────────────────────────────────────────────────────
@@ -339,20 +340,22 @@ export default function RecipeDetailPage() {
       <div className="px-4 pb-24 pt-5">
 
         {/* ── Ingredients ─────────────────────────────────────────────────── */}
-        <section className="mb-6">
-          <h2 className="text-base font-ui font-bold text-p1-dark mb-3">
-            Ingredients
-          </h2>
-          <div className="rounded-2xl bg-p1-card border border-p1-border-lt px-4">
-            {recipe.ingredients.map((ing, i) => (
-              <IngredientRow
-                key={i}
-                ingredient={ing}
-                last={i === recipe.ingredients.length - 1}
-              />
-            ))}
-          </div>
-        </section>
+        {(recipe.ingredients ?? []).length > 0 && (
+          <section className="mb-6">
+            <h2 className="text-base font-ui font-bold text-p1-dark mb-3">
+              Ingredients
+            </h2>
+            <div className="rounded-2xl bg-p1-card border border-p1-border-lt px-4">
+              {(recipe.ingredients ?? []).map((ing, i) => (
+                <IngredientRow
+                  key={i}
+                  ingredient={ing}
+                  last={i === (recipe.ingredients ?? []).length - 1}
+                />
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* ── Prep ahead ──────────────────────────────────────────────────── */}
         <PrepAheadSection recipe={recipe} />
@@ -381,6 +384,12 @@ export default function RecipeDetailPage() {
                   </p>
                 </div>
               ))}
+            </div>
+          ) : recipe.raw_text ? (
+            <div className="rounded-2xl bg-p1-card border border-p1-border-lt px-4 py-4">
+              <p className="text-sm font-ui text-p1-dark leading-relaxed whitespace-pre-wrap">
+                {recipe.raw_text}
+              </p>
             </div>
           ) : (
             <p className="text-sm font-ui text-p1-brown italic">

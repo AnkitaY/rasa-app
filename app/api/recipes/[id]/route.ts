@@ -14,7 +14,7 @@ export async function GET(
 
   const { data, error } = await admin
     .from('recipes')
-    .select('id, name, cuisine_type, meal_type, cook_time_minutes, servings, ingredients, steps, steps_v2, prep_ahead, is_complete_meal, source_type, source_url')
+    .select('id, name, cuisine_type, meal_type, cook_time_minutes, servings, ingredients, steps, steps_v2, prep_ahead, is_complete_meal, source_type, source_url, raw_text')
     .eq('id', id)
     .single()
 
