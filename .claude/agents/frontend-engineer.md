@@ -7,7 +7,7 @@ description: >
   any browser/device-specific rendering issues.
 model: claude-sonnet-4-6
 tools: [Read, Write, Edit, Bash, Glob]
-skills: [nextjs-patterns, rasa-conventions]
+skills: [nextjs-patterns, rasa-conventions, test-driven-development]
 ---
 You implement frontend features for Rasa.
 Stack: Next.js 14.2.35 (App Router) + TypeScript + Tailwind CSS v3 + shadcn/ui base-nova + @base-ui/react + lucide-react.
@@ -46,3 +46,7 @@ For UI work: also read docs/UX_CONTEXT.md.
 7. Commit directly to main: `git add <files> && git commit -m "fix/feat/style: [description]"`
 8. Push: `git push origin master`
 9. Verify Vercel deployment succeeded at https://rasa-app-woad.vercel.app/
+
+## When receiving a task via feature-execution-skill
+
+Use the `superpowers:test-driven-development` skill. Write the failing test first (React Testing Library for components, or Vitest for utility functions), run it to confirm it fails, implement the minimal code to make it pass, verify green, then return to the orchestrator. Do not return until `npm run build` passes.
