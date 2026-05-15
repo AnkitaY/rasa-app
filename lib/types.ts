@@ -30,7 +30,7 @@ export interface Recipe {
   created_at: string
   // S02 additions
   raw_text: string | null
-  source: 'ai_generated' | 'user_imported' | null
+  source: 'ai_generated' | 'user_imported' | 'global_curated' | null
   recipe_type: 'main' | 'side' | 'salad' | 'complete_meal' | null
   prep_friendly: boolean
   assembly_time_mins: number | null
