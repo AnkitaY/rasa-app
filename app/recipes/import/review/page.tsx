@@ -62,6 +62,12 @@ export default function ImportReviewPage() {
     setSaveError(null)
 
     const anon_id = getAnonId()
+    if (!anon_id) {
+      setSaveError('Something went wrong. Give it one more try?')
+      setSaving(false)
+      return
+    }
+
     const payload = {
       anon_id,
       name: nameToSave.trim(),
@@ -100,6 +106,7 @@ export default function ImportReviewPage() {
       const { recipe } = data as { recipe: { id: string; name: string } }
       sessionStorage.removeItem('import_draft')
       router.push(`/recipes/${recipe.id}?toast=saved`)
+      setSaving(false)
     } catch {
       setSaveError('Something went wrong while saving. Give it one more try?')
       setSaving(false)
@@ -140,10 +147,11 @@ export default function ImportReviewPage() {
 
         <div className="px-5 space-y-5">
           <div className="space-y-1.5">
-            <label className="text-xs font-ui font-semibold text-p1-brown uppercase tracking-wider">
+            <label htmlFor="recipe-name" className="text-xs font-ui font-semibold text-p1-brown uppercase tracking-wider">
               Recipe Name
             </label>
             <input
+              id="recipe-name"
               ref={nameRef}
               type="text"
               value={name}
@@ -154,10 +162,10 @@ export default function ImportReviewPage() {
           </div>
 
           {showMealTypeChips && (
-            <div className="space-y-2">
-              <label className="text-xs font-ui font-semibold text-p1-brown uppercase tracking-wider">
+            <fieldset className="space-y-2">
+              <legend className="text-xs font-ui font-semibold text-p1-brown uppercase tracking-wider">
                 Meal Type
-              </label>
+              </legend>
               <div className="flex gap-2 flex-wrap">
                 {(['breakfast', 'lunch', 'dinner'] as const).map((type) => (
                   <button
@@ -174,7 +182,7 @@ export default function ImportReviewPage() {
                   </button>
                 ))}
               </div>
-            </div>
+            </fieldset>
           )}
 
           {parsed.cook_time_minutes !== null && (
@@ -189,12 +197,13 @@ export default function ImportReviewPage() {
           <div className="rounded-xl border border-p1-border-lt bg-p1-card overflow-hidden">
             <button
               onClick={() => setIngredientsOpen((o) => !o)}
+              aria-expanded={ingredientsOpen}
               className="w-full flex items-center justify-between px-4 py-3.5 min-h-[44px]"
             >
               <span className="text-sm font-ui font-semibold text-p1-dark">
                 {ingredientCount} ingredient{ingredientCount !== 1 ? 's' : ''}
               </span>
-              {ingredientsOpen ? <ChevronUp className="w-4 h-4 text-p1-brown" /> : <ChevronDown className="w-4 h-4 text-p1-brown" />}
+              {ingredientsOpen ? <ChevronUp className="w-4 h-4 text-p1-brown" aria-hidden="true" /> : <ChevronDown className="w-4 h-4 text-p1-brown" aria-hidden="true" />}
             </button>
             {ingredientsOpen && (
               <ul className="px-4 pb-4 space-y-1.5 border-t border-p1-border-lt">
@@ -210,12 +219,13 @@ export default function ImportReviewPage() {
           <div className="rounded-xl border border-p1-border-lt bg-p1-card overflow-hidden">
             <button
               onClick={() => setStepsOpen((o) => !o)}
+              aria-expanded={stepsOpen}
               className="w-full flex items-center justify-between px-4 py-3.5 min-h-[44px]"
             >
               <span className="text-sm font-ui font-semibold text-p1-dark">
                 {stepCount} step{stepCount !== 1 ? 's' : ''}
               </span>
-              {stepsOpen ? <ChevronUp className="w-4 h-4 text-p1-brown" /> : <ChevronDown className="w-4 h-4 text-p1-brown" />}
+              {stepsOpen ? <ChevronUp className="w-4 h-4 text-p1-brown" aria-hidden="true" /> : <ChevronDown className="w-4 h-4 text-p1-brown" aria-hidden="true" />}
             </button>
             {stepsOpen && (
               <ol className="px-4 pb-4 space-y-2 border-t border-p1-border-lt">
@@ -237,7 +247,10 @@ export default function ImportReviewPage() {
         </div>
       </main>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-p1-cream border-t border-p1-border-lt px-5 pt-4 pb-8">
+      <div
+        className="fixed bottom-0 left-0 right-0 bg-p1-cream border-t border-p1-border-lt px-5 pt-4"
+        style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}
+      >
         <button
           onClick={() => attemptSave(name)}
           disabled={!name.trim() || saving}
