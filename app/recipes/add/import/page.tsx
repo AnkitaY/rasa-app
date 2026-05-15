@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 
@@ -16,12 +16,21 @@ export default function ImportRecipePage() {
   const [errorCode, setErrorCode] = useState<string | null>(null)
   const stallTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   function clearTimers() {
     if (stallTimer.current) clearTimeout(stallTimer.current)
     stallTimer.current = null
     setStalling(false)
   }
+
+  useEffect(() => {
+    return () => {
+      if (stallTimer.current) clearTimeout(stallTimer.current)
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      abortRef.current?.abort()
+    }
+  }, [])
 
   async function handleParse() {
     const text = rawText.trim()
@@ -36,7 +45,7 @@ export default function ImportRecipePage() {
 
     const abort = new AbortController()
     abortRef.current = abort
-    const timeoutHandle = setTimeout(() => abort.abort(), TIMEOUT_MS)
+    timeoutRef.current = setTimeout(() => abort.abort(), TIMEOUT_MS)
 
     try {
       const res = await fetch('/api/recipes/parse-text', {
@@ -46,7 +55,7 @@ export default function ImportRecipePage() {
         signal: abort.signal,
       })
 
-      clearTimeout(timeoutHandle)
+      clearTimeout(timeoutRef.current!)
       const data = await res.json() as
         | { parsed: Record<string, unknown> }
         | { error: string; code: string }
@@ -59,10 +68,14 @@ export default function ImportRecipePage() {
       }
 
       const { parsed } = data as { parsed: Record<string, unknown> }
-      sessionStorage.setItem('import_draft', JSON.stringify({ parsed, rawText: text }))
+      try {
+        sessionStorage.setItem('import_draft', JSON.stringify({ parsed, rawText: text }))
+      } catch {
+        // sessionStorage unavailable (private browsing / full) — proceed anyway, review page handles missing state
+      }
       router.push('/recipes/import/review')
     } catch (err) {
-      clearTimeout(timeoutHandle)
+      clearTimeout(timeoutRef.current!)
       if (err instanceof Error && err.name === 'AbortError') {
         setError('This is taking longer than expected. Want to try again?')
         setErrorCode('PARSE_FAILED')
@@ -108,12 +121,12 @@ export default function ImportRecipePage() {
         />
 
         {error && (
-          <div className="px-4 py-3 rounded-2xl bg-p1-card border border-p1-border-lt">
+          <div role="alert" className="px-4 py-3 rounded-2xl bg-p1-card border border-p1-border-lt">
             <p className="text-sm font-ui text-p1-brown">{error}</p>
             {isRetryable && (
               <button
                 onClick={handleParse}
-                className="mt-2 text-sm font-ui font-semibold text-p1-terra active:opacity-60"
+                className="mt-2 text-sm font-ui font-semibold text-p1-terra active:opacity-60 min-h-[44px] flex items-center"
               >
                 Try again
               </button>
