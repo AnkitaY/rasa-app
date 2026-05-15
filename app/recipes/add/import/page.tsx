@@ -1,111 +1,135 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, Link as LinkIcon } from 'lucide-react'
-import { getAnonId } from '@/lib/anon'
+import { ChevronLeft } from 'lucide-react'
+
+const STALL_DELAY_MS = 15_000
+const TIMEOUT_MS = 30_000
 
 export default function ImportRecipePage() {
   const router = useRouter()
-  const [url, setUrl] = useState('')
+  const [rawText, setRawText] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [stalling, setStalling] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [errorCode, setErrorCode] = useState<string | null>(null)
+  const stallTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
 
-  async function handleImport() {
-    const trimmed = url.trim()
-    if (!trimmed) return
-    setError('')
+  function clearTimers() {
+    if (stallTimer.current) clearTimeout(stallTimer.current)
+    stallTimer.current = null
+    setStalling(false)
+  }
+
+  async function handleParse() {
+    const text = rawText.trim()
+    if (!text || loading) return
+
+    setError(null)
+    setErrorCode(null)
     setLoading(true)
+    setStalling(false)
+
+    stallTimer.current = setTimeout(() => setStalling(true), STALL_DELAY_MS)
+
+    const abort = new AbortController()
+    abortRef.current = abort
+    const timeoutHandle = setTimeout(() => abort.abort(), TIMEOUT_MS)
 
     try {
-      const res = await fetch('/api/recipes/import', {
+      const res = await fetch('/api/recipes/parse-text', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: trimmed, anon_id: getAnonId() }),
+        body: JSON.stringify({ rawText: text }),
+        signal: abort.signal,
       })
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error ?? "Hmm, something went wrong. Give it one more try?")
+
+      clearTimeout(timeoutHandle)
+      const data = await res.json() as
+        | { parsed: Record<string, unknown> }
+        | { error: string; code: string }
+
+      if (!res.ok || 'error' in data) {
+        const errData = data as { error: string; code: string }
+        setError(errData.error)
+        setErrorCode(errData.code)
         return
       }
-      // Navigate to the saved recipe
-      router.push(`/recipes/${data.recipe.id}`)
-    } catch {
-      setError("Hmm, something went wrong. Give it one more try?")
+
+      const { parsed } = data as { parsed: Record<string, unknown> }
+      sessionStorage.setItem('import_draft', JSON.stringify({ parsed, rawText: text }))
+      router.push('/recipes/import/review')
+    } catch (err) {
+      clearTimeout(timeoutHandle)
+      if (err instanceof Error && err.name === 'AbortError') {
+        setError('This is taking longer than expected. Want to try again?')
+        setErrorCode('PARSE_FAILED')
+      } else {
+        setError('Something went wrong. Give it one more try?')
+        setErrorCode('NETWORK_ERROR')
+      }
     } finally {
+      clearTimers()
       setLoading(false)
     }
   }
 
+  const ctaText = loading
+    ? stalling ? 'Still reading — almost done.' : 'Reading your recipe…'
+    : 'Read this recipe'
+
+  const isRetryable = errorCode === 'PARSE_FAILED' || errorCode === 'NETWORK_ERROR'
+
   return (
-    <main className="min-h-screen bg-p1-cream">
-      {/* Header */}
-      <div className="px-5 pt-12 pb-6 flex items-center gap-3">
+    <main className="min-h-screen bg-p1-cream flex flex-col">
+      <div className="px-5 pt-12 pb-4 flex items-center gap-3">
         <button
           onClick={() => router.back()}
-          className="text-p1-brown active:opacity-60"
+          className="text-p1-brown active:opacity-60 min-w-[44px] min-h-[44px] flex items-center"
+          aria-label="Go back"
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
-        <h1 className="text-2xl font-ui font-bold text-p1-dark">Import from URL</h1>
+        <h1 className="text-2xl font-ui font-bold text-p1-dark leading-tight">
+          Drop in the recipe exactly as you got it.
+        </h1>
       </div>
 
-      <div className="px-5 space-y-5">
-        <p className="text-sm font-ui text-p1-brown">
-          Paste a link to any recipe page and we&apos;ll pull it in — ingredients, steps, and all.
-        </p>
+      <div className="flex-1 px-5 flex flex-col gap-4">
+        <textarea
+          value={rawText}
+          onChange={(e) => setRawText(e.target.value)}
+          disabled={loading}
+          placeholder="Paste anything here — Instagram caption, YouTube description, WhatsApp message. Ingredients and steps all jumbled together is fine. Rasa will sort it out."
+          className="w-full flex-1 min-h-[200px] resize-none rounded-2xl border border-p1-border bg-p1-card text-sm font-ui text-p1-dark placeholder:text-p1-brown/40 px-4 py-4 focus:outline-none focus:border-p1-terra transition-colors disabled:opacity-50"
+          style={{ height: 'calc(100dvh - 280px)' }}
+        />
 
-        {/* URL input */}
-        <div className="space-y-2">
-          <label className="text-xs font-ui font-semibold text-p1-brown uppercase tracking-wider">
-            Recipe URL
-          </label>
-          <div className="relative">
-            <LinkIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-p1-brown/40 pointer-events-none" />
-            <input
-              type="url"
-              value={url}
-              onChange={e => setUrl(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') handleImport() }}
-              placeholder="https://..."
-              className="w-full pl-10 pr-4 py-3.5 rounded-xl border border-p1-border bg-p1-card text-sm font-ui text-p1-dark placeholder:text-p1-brown/40 focus:outline-none focus:border-p1-terra transition-colors"
-            />
-          </div>
-        </div>
-
-        {/* Error */}
         {error && (
           <div className="px-4 py-3 rounded-2xl bg-p1-card border border-p1-border-lt">
             <p className="text-sm font-ui text-p1-brown">{error}</p>
+            {isRetryable && (
+              <button
+                onClick={handleParse}
+                className="mt-2 text-sm font-ui font-semibold text-p1-terra active:opacity-60"
+              >
+                Try again
+              </button>
+            )}
           </div>
         )}
+      </div>
 
-        {/* CTA */}
+      <div className="px-5 pb-8 pt-4">
         <button
-          onClick={handleImport}
-          disabled={!url.trim() || loading}
-          className="w-full py-4 rounded-xl bg-p1-terra text-white text-sm font-ui font-semibold tracking-wide disabled:opacity-40 transition-opacity active:opacity-80"
+          onClick={handleParse}
+          disabled={!rawText.trim() || loading}
+          className="w-full py-4 rounded-xl bg-p1-terra text-white text-sm font-ui font-semibold tracking-wide disabled:opacity-40 transition-opacity active:opacity-80 min-h-[44px]"
         >
-          {loading ? 'Reading recipe…' : 'Import recipe →'}
+          {ctaText}
         </button>
-
-        {loading && (
-          <p className="text-center text-xs text-p1-brown/60 font-ui">
-            Takes about 15 seconds — we&apos;re reading and structuring the full recipe.
-          </p>
-        )}
-
-        {/* Tips */}
-        <div className="rounded-2xl bg-p1-card border border-p1-border-lt px-4 py-4 space-y-2">
-          <p className="text-xs font-ui font-bold text-p1-brown uppercase tracking-wider">
-            Works best with
-          </p>
-          <ul className="space-y-1.5 text-sm font-ui text-p1-brown">
-            <li>· BBC Good Food, Serious Eats, NYT Cooking</li>
-            <li>· Food blogs with a clear ingredients list</li>
-            <li>· Any page where the recipe text is visible</li>
-          </ul>
-        </div>
       </div>
     </main>
   )
