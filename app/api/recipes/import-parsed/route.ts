@@ -60,6 +60,14 @@ export async function POST(request: NextRequest) {
   }
 
   const trimmedName = (name as string).trim()
+
+  if (trimmedName.length > 120) {
+    return NextResponse.json(
+      { error: 'Recipe name is too long (max 120 characters).', code: 'NAME_TOO_LONG' },
+      { status: 400 }
+    )
+  }
+
   const admin = createAdminClient()
 
   const { data: existingRecipes, error: listError } = await admin
@@ -97,8 +105,8 @@ export async function POST(request: NextRequest) {
     .from('recipes')
     .insert({
       anon_id: anon_id as string,
-      user_id: null,
-      name: trimmedName.slice(0, 120),
+      user_id: null, // pre-auth anonymous: no user_id until Phase 2
+      name: trimmedName,
       meal_type: meal_type ?? null,
       cook_time_minutes: cook_time_minutes ?? null,
       servings: servings ?? null,
@@ -107,8 +115,8 @@ export async function POST(request: NextRequest) {
       steps: [],
       steps_v2,
       raw_text: typeof raw_text === 'string' ? raw_text.slice(0, 20000) : null,
-      source: 'user_imported',
-      recipe_type: 'complete_meal',
+      source_type: 'user_imported',
+      is_complete_meal: true,
       excluded_from_plans: false,
     })
     .select('id, name')
