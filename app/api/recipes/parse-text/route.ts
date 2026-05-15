@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
 
     if (isTimeout) {
       return NextResponse.json(
-        { error: 'This is taking longer than expected. Want to try again?', code: 'PARSE_TIMEOUT' },
+        { error: 'This is taking longer than expected. Want to try again?', code: 'PARSE_FAILED' },
         { status: 503 }
       )
     }
