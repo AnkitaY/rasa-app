@@ -115,13 +115,21 @@ export default function RecipesPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-ui font-bold text-p1-dark">Recipe bank</h1>
-        <button
-          onClick={() => setImportModalOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-p1-terra text-white text-xs font-ui font-semibold active:opacity-80"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Add recipe
-        </button>
+        <div className="flex flex-col items-end gap-1">
+          <button
+            onClick={() => setImportModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-p1-terra text-white text-xs font-ui font-semibold active:opacity-80"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add recipe
+          </button>
+          <button
+            onClick={() => router.push('/recipes/add/import')}
+            className="text-[11px] font-ui text-p1-brown active:opacity-60 min-h-[44px] flex items-center"
+          >
+            Import from text
+          </button>
+        </div>
       </div>
 
       {/* Search */}
