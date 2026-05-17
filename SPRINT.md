@@ -8,15 +8,15 @@ Goal: Free text recipe import end-to-end — paste, Haiku parse, review, save, d
 
 ## Task checklist (execution order — do not reorder)
 
-- [ ] FEAT-S03-001-SPIKE — Haiku proof-of-concept: prove `claude-haiku-4-5-20251001` + `betas: ['prompt-caching-2024-07-31']` works with `@anthropic-ai/sdk ^0.92.0` (lead-engineer | S | 30 min timebox)
-- [ ] FEAT-S03-000 — DB migration: add `global_curated` to `recipes.source` check constraint + regen TypeScript types (backend-engineer | S)
+- [x] FEAT-S03-001-SPIKE — Haiku proof-of-concept: prove `claude-haiku-4-5-20251001` + `betas: ['prompt-caching-2024-07-31']` works with `@anthropic-ai/sdk ^0.92.0` (lead-engineer | S | 30 min timebox)
+- [x] FEAT-S03-000 — DB migration: add `global_curated` to `recipes.source` check constraint + regen TypeScript types (backend-engineer | S)
 - [x] FEAT-S03-001 — `POST /api/recipes/parse-text` — Haiku 4.5 parse + prompt caching [requires spike + FEAT-S03-000] (backend-engineer | M)
-- [ ] FEAT-S03-005 — `POST /api/recipes/import-parsed` — duplicate detection, name suggestion, DB write [requires FEAT-S03-000] (backend-engineer | S)
-- [ ] FEAT-S03-002 — Import screen UI at `/recipes/add/import` — single textarea + CTA + error states [requires FEAT-S03-001] (frontend-engineer | M)
-- [ ] FEAT-S03-003 — Review screen UI at `/recipes/import/review` — editable name, meal type chips, collapsed lists [requires FEAT-S03-001 + FEAT-S03-005] (frontend-engineer | L)
-- [ ] FEAT-S03-004 — `DuplicateNameSheet` bottom sheet component [requires FEAT-S03-005] (frontend-engineer | M)
-- [ ] FEAT-S03-006 — Error states audit + save-success toast [requires all prior tasks] (lead-engineer | S)
-- [ ] FEAT-S03-007 — Wire "Import from text" entry point on recipe bank page to `/recipes/add/import` [requires FEAT-S03-002] (frontend-engineer | S)
+- [x] FEAT-S03-005 — `POST /api/recipes/import-parsed` — duplicate detection, name suggestion, DB write [requires FEAT-S03-000] (backend-engineer | S)
+- [x] FEAT-S03-002 — Import screen UI at `/recipes/add/import` — single textarea + CTA + error states [requires FEAT-S03-001] (frontend-engineer | M)
+- [x] FEAT-S03-003 — Review screen UI at `/recipes/import/review` — editable name, meal type chips, collapsed lists [requires FEAT-S03-001 + FEAT-S03-005] (frontend-engineer | L)
+- [x] FEAT-S03-004 — `DuplicateNameSheet` bottom sheet component [requires FEAT-S03-005] (frontend-engineer | M)
+- [x] FEAT-S03-006 — Error states audit + save-success toast [requires all prior tasks] (lead-engineer | S)
+- [x] FEAT-S03-007 — Wire "Import from text" entry point on recipe bank page to `/recipes/add/import` [requires FEAT-S03-002] (frontend-engineer | S)
 
 ---
 
