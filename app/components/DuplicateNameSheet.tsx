@@ -22,8 +22,8 @@ export default function DuplicateNameSheet({
   const [editedName, setEditedName] = useState(suggestedName)
 
   useEffect(() => {
-    setEditedName(suggestedName)
-  }, [suggestedName])
+    if (open) setEditedName(suggestedName)
+  }, [open, suggestedName])
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={(isOpen) => { if (!isOpen) onCancel() }}>
@@ -48,7 +48,11 @@ export default function DuplicateNameSheet({
             You&apos;ve already saved &ldquo;{originalName}&rdquo;. Want to save it as a new version?
             Here&apos;s a name to start with — change it however you like.
           </DialogPrimitive.Description>
+          <label htmlFor="duplicate-name-input" className="sr-only">
+            New recipe name
+          </label>
           <input
+            id="duplicate-name-input"
             type="text"
             value={editedName}
             onChange={(e) => setEditedName(e.target.value)}
