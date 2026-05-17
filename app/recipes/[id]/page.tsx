@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 
 
@@ -222,8 +222,17 @@ function IngredientRow({ ingredient, last }: { ingredient: Ingredient; last: boo
 export default function RecipeDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [recipe, setRecipe] = useState<Recipe | null>(null)
   const [loading, setLoading] = useState(true)
+  const [toastVisible, setToastVisible] = useState(searchParams.get('toast') === 'saved')
+
+  useEffect(() => {
+    if (toastVisible) {
+      const t = setTimeout(() => setToastVisible(false), 4000)
+      return () => clearTimeout(t)
+    }
+  }, [toastVisible])
 
   useEffect(() => {
     if (!id) return
@@ -413,6 +422,13 @@ export default function RecipeDetailPage() {
           </p>
         )}
       </div>
+
+      {/* ── Save-success toast ───────────────────────────────────────────── */}
+      {toastVisible && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-p1-dark text-white text-sm font-ui font-medium px-5 py-3 rounded-full shadow-lg whitespace-nowrap">
+          Saved. It&apos;s in your bank and ready for your next plan.
+        </div>
+      )}
 
     </main>
   )
