@@ -115,6 +115,7 @@ export async function POST(request: NextRequest) {
       steps: [],
       steps_v2,
       raw_text: typeof raw_text === 'string' ? raw_text.slice(0, 20000) : null,
+      source: 'user_imported',
       source_type: 'user_imported',
       is_complete_meal: true,
       excluded_from_plans: false,

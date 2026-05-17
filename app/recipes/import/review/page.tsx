@@ -106,7 +106,8 @@ export default function ImportReviewPage() {
       const { recipe } = data as { recipe: { id: string; name: string } }
       sessionStorage.removeItem('import_draft')
       router.push(`/recipes/${recipe.id}?toast=saved`)
-      setSaving(false)
+      // Do not setSaving(false) here — component unmounts on navigation,
+      // and leaving saving=true prevents a double-submit if navigation is slow
     } catch {
       setSaveError('Something went wrong while saving. Give it one more try?')
       setSaving(false)
