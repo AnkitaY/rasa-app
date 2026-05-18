@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (insertError) {
-    console.error('[import-parsed] insert error', insertError)
+    console.error('[import-parsed] insert error', JSON.stringify(insertError))
     return NextResponse.json(
       { error: 'Something went wrong while saving. Give it one more try?', code: 'DB_ERROR' },
       { status: 500 }
