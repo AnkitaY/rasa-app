@@ -6,7 +6,7 @@ import { getAnonId } from '@/lib/anon'
 import { Recipe } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Plus, ExternalLink, X, Search } from 'lucide-react'
-import ImportRecipeModal, { ImportedRecipe } from '@/components/ImportRecipeModal'
+import ImportRecipeModal from '@/components/ImportRecipeModal'
 
 const TYPE_FILTERS = [
   { value: 'All', label: 'All' },
@@ -31,7 +31,6 @@ export default function RecipesPage() {
   const [typeFilter, setTypeFilter] = useState('All')
   const [mealFilter, setMealFilter] = useState('any')
   const [importModalOpen, setImportModalOpen] = useState(false)
-  const [toast, setToast] = useState<string | null>(null)
 
   useEffect(() => {
     const anonId = getAnonId()
@@ -43,41 +42,6 @@ export default function RecipesPage() {
       .catch(() => {/* show empty state */})
       .finally(() => setLoading(false))
   }, [])
-
-  function showToast(msg: string) {
-    setToast(msg)
-    setTimeout(() => setToast(null), 3000)
-  }
-
-  function handleImported(recipe: ImportedRecipe) {
-    const newRecipe: Recipe = {
-      id: recipe.id,
-      name: recipe.name,
-      recipe_type: recipe.recipe_type as Recipe['recipe_type'],
-      meal_type: recipe.meal_type,
-      source: recipe.source as Recipe['source'],
-      source_url: recipe.source_url,
-      user_id: '',
-      cuisine_type: null,
-      servings: 1,
-      cook_time_minutes: null,
-      ingredients: [],
-      steps: [],
-      macros_per_serving: null,
-      batch_cookable: false,
-      source_type: 'user_imported',
-      source_raw_text: null,
-      user_rating: null,
-      last_cooked_date: null,
-      created_at: new Date().toISOString(),
-      raw_text: null,
-      prep_friendly: false,
-      assembly_time_mins: null,
-      excluded_from_plans: false,
-    }
-    setRecipes(prev => [newRecipe, ...prev])
-    showToast('Added to your bank')
-  }
 
   const filtered = useMemo(() => {
     return recipes.filter(r => {
@@ -101,35 +65,16 @@ export default function RecipesPage() {
   return (
     <main className="min-h-screen bg-p1-cream px-5 pt-12 pb-24">
 
-      {/* Toast */}
-      {toast && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-p1-forest text-white text-sm font-ui font-medium px-5 py-3 rounded-2xl shadow-xl whitespace-nowrap"
-        >
-          {toast}
-        </div>
-      )}
-
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-ui font-bold text-p1-dark">Recipe bank</h1>
-        <div className="flex flex-col items-end gap-1">
-          <button
-            onClick={() => setImportModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-p1-terra text-white text-xs font-ui font-semibold active:opacity-80"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Add recipe
-          </button>
-          <button
-            onClick={() => router.push('/recipes/add/import')}
-            className="text-[11px] font-ui text-p1-brown active:opacity-60 min-h-[44px] flex items-center"
-          >
-            Import from text
-          </button>
-        </div>
+        <button
+          onClick={() => setImportModalOpen(true)}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-p1-terra text-white text-xs font-ui font-semibold active:opacity-80"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          Add recipe
+        </button>
       </div>
 
       {/* Search */}
@@ -314,11 +259,7 @@ export default function RecipesPage() {
         </div>
       )}
 
-      <ImportRecipeModal
-        open={importModalOpen}
-        onOpenChange={setImportModalOpen}
-        onImported={handleImported}
-      />
+      <ImportRecipeModal open={importModalOpen} onOpenChange={setImportModalOpen} />
     </main>
   )
 }

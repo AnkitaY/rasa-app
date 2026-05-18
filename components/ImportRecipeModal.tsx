@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { getAnonId } from '@/lib/anon'
+import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import {
   Dialog,
@@ -28,22 +28,13 @@ const MEAL_OCCASIONS: { value: MealOccasion; label: string }[] = [
   { value: 'any', label: 'Any' },
 ]
 
-export interface ImportedRecipe {
-  id: string
-  name: string
-  recipe_type: string | null
-  meal_type: string | null
-  source: string
-  source_url: string | null
-}
-
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onImported: (recipe: ImportedRecipe) => void
 }
 
-export default function ImportRecipeModal({ open, onOpenChange, onImported }: Props) {
+export default function ImportRecipeModal({ open, onOpenChange }: Props) {
+  const router = useRouter()
   const [name, setName] = useState('')
   const [recipeType, setRecipeType] = useState<RecipeType | null>(null)
   const [mealOccasions, setMealOccasions] = useState<MealOccasion[]>(['any'])
@@ -52,10 +43,10 @@ export default function ImportRecipeModal({ open, onOpenChange, onImported }: Pr
   const [nameError, setNameError] = useState('')
   const [typeError, setTypeError] = useState('')
   const [textError, setTextError] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState('')
+  const [parsing, setParsing] = useState(false)
+  const [parseError, setParseError] = useState('')
 
-  const canSave = name.trim().length > 0 && recipeType !== null && rawText.trim().length > 0
+  const canContinue = name.trim().length > 0 && recipeType !== null && rawText.trim().length > 0
 
   useEffect(() => {
     if (!open) {
@@ -67,7 +58,7 @@ export default function ImportRecipeModal({ open, onOpenChange, onImported }: Pr
       setNameError('')
       setTypeError('')
       setTextError('')
-      setSaveError('')
+      setParseError('')
     }
   }, [open])
 
@@ -86,7 +77,7 @@ export default function ImportRecipeModal({ open, onOpenChange, onImported }: Pr
     })
   }
 
-  async function handleSave() {
+  async function handleContinue() {
     let valid = true
     if (!name.trim()) {
       setNameError('Give this one a name so you can find it later.')
@@ -108,40 +99,49 @@ export default function ImportRecipeModal({ open, onOpenChange, onImported }: Pr
     }
     if (!valid) return
 
-    setSaving(true)
-    setSaveError('')
+    setParsing(true)
+    setParseError('')
+
     try {
-      const anonId = getAnonId()
-      const res = await fetch('/api/recipes/import', {
+      const res = await fetch('/api/recipes/parse-text', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          anon_id: anonId,
-          name: name.trim(),
-          raw_text: rawText.trim(),
-          recipe_type: recipeType,
-          meal_type: mealOccasions,
-          source_url: sourceUrl.trim() || undefined,
-        }),
+        body: JSON.stringify({ rawText: rawText.trim() }),
       })
-      const json = await res.json()
-      if (!res.ok) {
-        setSaveError(json.error || 'Something went wrong.')
+      const data = await res.json() as
+        | { parsed: Record<string, unknown> }
+        | { error: string; code: string }
+
+      if (!res.ok || 'error' in data) {
+        const errData = data as { error: string; code: string }
+        setParseError(errData.code === 'NOT_A_RECIPE'
+          ? "This doesn't look like a recipe. Try pasting the full recipe text."
+          : errData.error)
         return
       }
-      if (!json.recipe?.id || typeof json.recipe?.name !== 'string') {
-        setSaveError('Recipe saved but something went wrong loading it. Reload to see it.')
-        return
+
+      const { parsed } = data as { parsed: Record<string, unknown> }
+      try {
+        sessionStorage.setItem('import_draft', JSON.stringify({
+          parsed,
+          rawText: rawText.trim(),
+          userFields: {
+            name: name.trim(),
+            recipe_type: recipeType,
+            meal_type: mealOccasions,
+            source_url: sourceUrl.trim() || null,
+          },
+        }))
+      } catch {
+        // sessionStorage unavailable — review page handles missing state
       }
-      onImported({
-        ...json.recipe,
-        source_url: sourceUrl.trim() || null,
-      })
+
       onOpenChange(false)
+      router.push('/recipes/import/review')
     } catch {
-      setSaveError('Hmm, something went wrong. Give it one more try?')
+      setParseError('Something went wrong. Give it one more try?')
     } finally {
-      setSaving(false)
+      setParsing(false)
     }
   }
 
@@ -262,9 +262,9 @@ export default function ImportRecipeModal({ open, onOpenChange, onImported }: Pr
             )}
           </div>
 
-          {saveError && (
+          {parseError && (
             <div className="px-4 py-3 rounded-2xl bg-p1-card border border-p1-border-lt">
-              <p className="text-sm font-ui text-p1-brown">{saveError}</p>
+              <p className="text-sm font-ui text-p1-brown">{parseError}</p>
             </div>
           )}
 
@@ -275,16 +275,16 @@ export default function ImportRecipeModal({ open, onOpenChange, onImported }: Pr
             </DialogClose>
             <button
               type="button"
-              onClick={handleSave}
-              aria-disabled={!canSave || saving}
+              onClick={handleContinue}
+              aria-disabled={!canContinue || parsing}
               className={cn(
                 'px-5 py-3 rounded-xl text-sm font-ui font-semibold transition-colors',
-                canSave && !saving
+                canContinue && !parsing
                   ? 'bg-p1-terra text-white active:opacity-80'
                   : 'bg-p1-surface text-p1-brown cursor-not-allowed'
               )}
             >
-              {saving ? 'Saving…' : 'Add to bank'}
+              {parsing ? 'Reading…' : 'Review recipe →'}
             </button>
           </div>
         </div>

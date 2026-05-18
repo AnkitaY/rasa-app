@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const { anon_id, name, meal_type, cook_time_minutes, servings, cuisine_type, ingredients, steps_v2, raw_text } = body
+  const { anon_id, name, meal_type, recipe_type, source_url, cook_time_minutes, servings, cuisine_type, ingredients, steps_v2, raw_text } = body
 
   if (!anon_id || typeof anon_id !== 'string') {
     return NextResponse.json({ error: 'Missing anon_id', code: 'MISSING_ANON_ID' }, { status: 400 })
@@ -115,6 +115,8 @@ export async function POST(request: NextRequest) {
       steps: [],
       steps_v2,
       raw_text: typeof raw_text === 'string' ? raw_text.slice(0, 20000) : null,
+      recipe_type: typeof recipe_type === 'string' ? recipe_type : 'complete_meal',
+      source_url: typeof source_url === 'string' && source_url ? source_url : null,
       source: 'user_imported',
       source_type: 'user_imported',
       is_complete_meal: true,

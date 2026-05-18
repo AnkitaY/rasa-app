@@ -17,6 +17,12 @@ interface ParsedDraft {
     steps_v2: { instruction: string }[]
   }
   rawText: string
+  userFields?: {
+    name: string
+    recipe_type: string
+    meal_type: string[]
+    source_url: string | null
+  }
 }
 
 const MEAL_TYPE_LABELS: Record<string, string> = {
@@ -48,8 +54,14 @@ export default function ImportReviewPage() {
     try {
       const parsed = JSON.parse(raw) as ParsedDraft
       setDraft(parsed)
-      setName(parsed.parsed.name ?? '')
-      setMealType(parsed.parsed.meal_type)
+      // User's name from the modal takes priority over Haiku's extracted name
+      setName(parsed.userFields?.name || parsed.parsed.name || '')
+      // Use user's modal selection if they picked exactly one specific meal type
+      const modalMeals = parsed.userFields?.meal_type ?? []
+      const singleModal = modalMeals.length === 1 && modalMeals[0] !== 'any'
+        ? modalMeals[0] as 'breakfast' | 'lunch' | 'dinner'
+        : null
+      setMealType(singleModal ?? parsed.parsed.meal_type)
       setTimeout(() => nameRef.current?.focus(), 100)
     } catch {
       router.replace('/recipes/add/import')
@@ -72,6 +84,8 @@ export default function ImportReviewPage() {
       anon_id,
       name: nameToSave.trim(),
       meal_type: mealType,
+      recipe_type: draft.userFields?.recipe_type ?? null,
+      source_url: draft.userFields?.source_url ?? null,
       cook_time_minutes: draft.parsed.cook_time_minutes,
       servings: draft.parsed.servings,
       cuisine_type: draft.parsed.cuisine_type,
@@ -128,7 +142,7 @@ export default function ImportReviewPage() {
   }
 
   const { parsed } = draft
-  const showMealTypeChips = parsed.meal_type === null
+  const showMealTypeChips = mealType === null
   const ingredientCount = parsed.ingredients.length
   const stepCount = parsed.steps_v2.length
 
