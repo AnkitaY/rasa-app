@@ -96,7 +96,12 @@ export async function POST(request: NextRequest) {
       throw new Error('Unexpected LLM response type')
     }
 
-    parsed = JSON.parse(rawContent.text.trim()) as ParsedRecipeFields
+    const jsonText = rawContent.text.trim()
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/, '')
+      .replace(/\s*```$/, '')
+      .trim()
+    parsed = JSON.parse(jsonText) as ParsedRecipeFields
   } catch (err) {
     const isTimeout =
       err instanceof Anthropic.APIConnectionTimeoutError ||
