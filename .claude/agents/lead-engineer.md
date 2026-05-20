@@ -45,8 +45,12 @@ Before any task: Read CLAUDE.md (auto-loaded) + docs/ENGINEERING_CONTEXT.md + SP
 3. Append to ops/DAILY_LOG.md: `- [DATE] [lead-engineer] main [task id] — [one line summary]`
 4. Run `/review` — address every issue raised before proceeding
 5. Commit directly to main: `git add <files> && git commit -m "fix/feat/chore: [description]"`
-6. Push: `git push origin master`
-7. Verify Vercel deployment succeeded at https://rasa-app-woad.vercel.app/
+6. Push to remote: `git push origin main` (single default branch — no master in this repo)
+7. Deploy to Vercel production via the Vercel MCP — never skip this, auto-deploy on push is not relied on:
+   a. Call `mcp__d78263c1-b554-43fc-a71e-9efdfd29bc00__deploy_to_vercel` to trigger a production build.
+   b. Call `mcp__d78263c1-b554-43fc-a71e-9efdfd29bc00__list_deployments` (or `get_deployment` with the returned id) and poll until `readyState` is `READY`.
+   c. On `ERROR` / `CANCELED`: call `get_deployment_build_logs`, surface the failing step, and do NOT mark the task done.
+   d. Final check: confirm https://rasa-app-woad.vercel.app/ serves the new build.
 
 ## Handoff note (when delegating)
 FROM: lead-engineer | BRANCH: [name] | NEXT: [frontend/backend/code-reviewer + what]

@@ -44,8 +44,12 @@ For UI work: also read docs/UX_CONTEXT.md.
 5. Append to ops/DAILY_LOG.md: `- [DATE] [frontend-engineer] main [task id] — [one line summary]`
 6. Run `/review` — address every issue raised before proceeding
 7. Commit directly to main: `git add <files> && git commit -m "fix/feat/style: [description]"`
-8. Push: `git push origin master`
-9. Verify Vercel deployment succeeded at https://rasa-app-woad.vercel.app/
+8. Push to remote: `git push origin main` (single default branch — no master in this repo)
+9. Deploy to Vercel production via the Vercel MCP — never skip this, auto-deploy on push is not relied on:
+   a. Call `mcp__d78263c1-b554-43fc-a71e-9efdfd29bc00__deploy_to_vercel` to trigger a production build.
+   b. Call `mcp__d78263c1-b554-43fc-a71e-9efdfd29bc00__list_deployments` (or `get_deployment` with the returned id) and poll until `readyState` is `READY`.
+   c. On `ERROR` / `CANCELED`: call `get_deployment_build_logs`, surface the failing step, and do NOT mark the task done.
+   d. Final check: confirm https://rasa-app-woad.vercel.app/ serves the new build.
 
 ## When receiving a task via feature-execution-skill
 

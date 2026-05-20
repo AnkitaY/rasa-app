@@ -47,9 +47,12 @@ if (loading) return (
 1. `npm run build` — must pass (ESLint + TypeScript run here)
 2. `git add <changed files>` — never use `git add -A` (risk of committing .env)
 3. `git commit -m "..."` 
-4. `git push origin master master:main` — pushes to both branches (Vercel watches `main`)
-5. `npx vercel --prod --scope aikanshs-projects` — **always run this**; git auto-deploy is unreliable
-6. Confirm the Vercel output shows `▲ Aliased https://rasa-app-woad.vercel.app` before reporting done
+4. `git push origin main` — single default branch (master no longer exists; removed 2026-05-20)
+5. Deploy to Vercel production via the Vercel MCP — **always run this**, do not rely on git auto-deploy and do not use the `npx vercel` CLI:
+   - `mcp__d78263c1-b554-43fc-a71e-9efdfd29bc00__deploy_to_vercel` to trigger the build
+   - Poll `list_deployments` / `get_deployment` until `readyState` = `READY`
+   - On `ERROR` / `CANCELED`: pull `get_deployment_build_logs` and report failure — do not mark done
+6. Confirm https://rasa-app-woad.vercel.app/ serves the new build before reporting done
 
 ## Known gotchas
 - Never use `asChild` prop — @base-ui/react doesn't support it

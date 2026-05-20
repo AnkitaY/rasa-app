@@ -41,7 +41,7 @@
 | Auth | Pre-auth anonymous — no login; identity via `rasa_anon_id` in localStorage | No auth layer; anon ID is the only user identity signal |
 | Styling | Tailwind CSS v3.4.1 + shadcn/ui base-nova + @base-ui/react | [PLACEHOLDER — why @base-ui alongside shadcn? e.g. "base-ui used for X because shadcn's asChild pattern is incompatible"] |
 | AI | @anthropic-ai/sdk — model: `claude-sonnet-4-20250514` | |
-| Deployment | Vercel (auto-deploy from main branch) | |
+| Deployment | Vercel — deployed explicitly via Vercel MCP after each push to `main` (do not rely on git auto-deploy) | |
 | CI/CD | GitHub Actions | |
 | State | Local useState — no global store | Intentional for Phase 1 simplicity — revisit at Phase 2 |
 
@@ -65,11 +65,15 @@
 
 ### Git / deploy
 - Never commit `.env` files or secrets to git
-- Commit directly to main — run `/review` and fix all issues before pushing
+- **Single default branch: `main`.** There is no `master` branch — it was removed 2026-05-20. Always commit and push to `main`. If any doc or script still says `master`, fix it.
+- Commit directly to `main` — run `/review` and fix all issues before pushing
 - Always run `npm run build` before committing — ESLint runs at build time
-- **After every push, always force-deploy to Vercel production:**
-  `npx vercel --prod --scope aikanshs-projects`
-  Vercel's git integration watches `main` but auto-deploy is unreliable — always run the CLI deploy explicitly after pushing. The production URL is https://rasa-app-woad.vercel.app/
+- Push: `git push origin main` (or just `git push` since upstream is set)
+- **After every push, deploy to Vercel production via the Vercel MCP — do not rely on Vercel's git auto-deploy, and do not use the `npx vercel` CLI:**
+  1. Call `mcp__d78263c1-b554-43fc-a71e-9efdfd29bc00__deploy_to_vercel` to trigger a production build.
+  2. Poll with `mcp__d78263c1-b554-43fc-a71e-9efdfd29bc00__list_deployments` (or `get_deployment` with the returned id) until `readyState` = `READY`.
+  3. On `ERROR` / `CANCELED`: fetch logs with `get_deployment_build_logs`, surface the failure, do not mark the task done.
+  4. Confirm https://rasa-app-woad.vercel.app/ serves the new build.
 
 ### Repo-level operating constraints
 - If `SPRINT.md` and `ops/inbox/engineering/tasks.md` conflict, stop and ask — don't assume
