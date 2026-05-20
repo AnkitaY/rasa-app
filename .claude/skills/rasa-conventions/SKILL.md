@@ -48,10 +48,13 @@ if (loading) return (
 2. `git add <changed files>` — never use `git add -A` (risk of committing .env)
 3. `git commit -m "..."` 
 4. `git push origin main` — single default branch (master no longer exists; removed 2026-05-20)
-5. Deploy to Vercel production via the Vercel MCP — **always run this**, do not rely on git auto-deploy and do not use the `npx vercel` CLI:
-   - `mcp__d78263c1-b554-43fc-a71e-9efdfd29bc00__deploy_to_vercel` to trigger the build
-   - Poll `list_deployments` / `get_deployment` until `readyState` = `READY`
+5. Verify production deploy via the Vercel MCP — **always run this**:
+   - The push above triggers Vercel's git auto-deploy. (`deploy_to_vercel` MCP is advisory only; the real trigger is the push or `vercel deploy` CLI.)
+   - Project IDs are in `.vercel/project.json` (projectId `prj_YELCx2DVLax2jF7uBpKdUMa6cB53`, teamId `team_qxqbzAOXJAk0aoe5N3qlfy7q`).
+   - Call `list_deployments` and find the entry whose `meta.githubCommitSha` matches your commit
+   - Poll `get_deployment` until `readyState` = `READY`
    - On `ERROR` / `CANCELED`: pull `get_deployment_build_logs` and report failure — do not mark done
+   - If the MCP returns 403, escalate to the founder to reconnect Vercel; fallback: `curl -sI https://rasa-app-woad.vercel.app/` returns 200 and the page reflects the change
 6. Confirm https://rasa-app-woad.vercel.app/ serves the new build before reporting done
 
 ## Known gotchas

@@ -46,11 +46,14 @@ Before any task: Read CLAUDE.md (auto-loaded) + docs/ENGINEERING_CONTEXT.md + SP
 4. Run `/review` — address every issue raised before proceeding
 5. Commit directly to main: `git add <files> && git commit -m "fix/feat/chore: [description]"`
 6. Push to remote: `git push origin main` (single default branch — no master in this repo)
-7. Deploy to Vercel production via the Vercel MCP — never skip this, auto-deploy on push is not relied on:
-   a. Call `mcp__d78263c1-b554-43fc-a71e-9efdfd29bc00__deploy_to_vercel` to trigger a production build.
-   b. Call `mcp__d78263c1-b554-43fc-a71e-9efdfd29bc00__list_deployments` (or `get_deployment` with the returned id) and poll until `readyState` is `READY`.
-   c. On `ERROR` / `CANCELED`: call `get_deployment_build_logs`, surface the failing step, and do NOT mark the task done.
-   d. Final check: confirm https://rasa-app-woad.vercel.app/ serves the new build.
+7. Verify production deploy via the Vercel MCP — never skip:
+   - The push above triggers Vercel's git auto-deploy. (`deploy_to_vercel` MCP only advises; the actual trigger is the git push or `vercel deploy` CLI.)
+   - Project IDs are in `.vercel/project.json` (projectId `prj_YELCx2DVLax2jF7uBpKdUMa6cB53`, teamId `team_qxqbzAOXJAk0aoe5N3qlfy7q`).
+   a. Call `mcp__d78263c1-b554-43fc-a71e-9efdfd29bc00__list_deployments` with those IDs; find the entry whose `meta.githubCommitSha` matches your commit.
+   b. Poll `mcp__d78263c1-b554-43fc-a71e-9efdfd29bc00__get_deployment` until `readyState` = `READY`.
+   c. On `ERROR` / `CANCELED`: call `get_deployment_build_logs`, surface the failing step, do NOT mark the task done.
+   d. If the MCP returns 403 (auth scope expired), escalate to the founder to reconnect the Vercel MCP. Fallback verification: `curl -sI https://rasa-app-woad.vercel.app/` returns 200 AND a page containing your change renders correctly.
+   e. Final check: confirm https://rasa-app-woad.vercel.app/ serves the new build.
 
 ## Handoff note (when delegating)
 FROM: lead-engineer | BRANCH: [name] | NEXT: [frontend/backend/code-reviewer + what]

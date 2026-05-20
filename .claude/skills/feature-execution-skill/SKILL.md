@@ -57,10 +57,12 @@ After all tasks for the feature complete:
 1. Update `SPRINT.md`: change `- [ ]` to `- [x]` for each completed task.
 2. Commit: `git add <all changed files> && git commit -m "feat: [feature name] — [one line summary]"`
 3. Push: `git push origin main` (single default branch — no master)
-4. Deploy to Vercel production via the Vercel MCP — never skip:
-   - Call `mcp__d78263c1-b554-43fc-a71e-9efdfd29bc00__deploy_to_vercel`
-   - Poll `list_deployments` / `get_deployment` until `readyState` = `READY`
-   - On failure: `get_deployment_build_logs`, report, do not mark done
+4. Verify production deploy via the Vercel MCP — never skip:
+   - The push above triggers Vercel's git auto-deploy. (`deploy_to_vercel` MCP is advisory only.)
+   - Call `list_deployments` (projectId `prj_YELCx2DVLax2jF7uBpKdUMa6cB53`, teamId `team_qxqbzAOXJAk0aoe5N3qlfy7q`) and find the entry matching your commit SHA.
+   - Poll `get_deployment` until `readyState` = `READY`.
+   - On failure: `get_deployment_build_logs`, report, do not mark done.
+   - If MCP returns 403, escalate to reconnect Vercel; fallback: `curl -sI` 200 + visual check.
 5. Append to `ops/DAILY_LOG.md`: `- [DATE] [lead-engineer] main [feature name] — feature complete. Tasks: N completed, N escalated.`
 6. Report to founder: feature name, tasks completed, any items in NEEDS_FOUNDER.md.
 
