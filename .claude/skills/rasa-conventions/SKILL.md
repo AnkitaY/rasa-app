@@ -43,6 +43,14 @@ if (loading) return (
 )}
 ```
 
+## Deploy checklist — run in order after every fix
+1. `npm run build` — must pass (ESLint + TypeScript run here)
+2. `git add <changed files>` — never use `git add -A` (risk of committing .env)
+3. `git commit -m "..."` 
+4. `git push origin master master:main` — pushes to both branches (Vercel watches `main`)
+5. `npx vercel --prod --scope aikanshs-projects` — **always run this**; git auto-deploy is unreliable
+6. Confirm the Vercel output shows `▲ Aliased https://rasa-app-woad.vercel.app` before reporting done
+
 ## Known gotchas
 - Never use `asChild` prop — @base-ui/react doesn't support it
 - Never import from "shadcn/tailwind.css" — Tailwind v4 syntax, incompatible with v3

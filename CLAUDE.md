@@ -67,6 +67,9 @@
 - Never commit `.env` files or secrets to git
 - Commit directly to main — run `/review` and fix all issues before pushing
 - Always run `npm run build` before committing — ESLint runs at build time
+- **After every push, always force-deploy to Vercel production:**
+  `npx vercel --prod --scope aikanshs-projects`
+  Vercel's git integration watches `main` but auto-deploy is unreliable — always run the CLI deploy explicitly after pushing. The production URL is https://rasa-app-woad.vercel.app/
 
 ### Repo-level operating constraints
 - If `SPRINT.md` and `ops/inbox/engineering/tasks.md` conflict, stop and ask — don't assume
