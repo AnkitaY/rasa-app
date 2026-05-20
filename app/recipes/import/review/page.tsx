@@ -148,7 +148,7 @@ export default function ImportReviewPage() {
 
   return (
     <>
-      <main className="min-h-screen bg-p1-cream pb-32">
+      <main className="min-h-screen bg-p1-cream pb-48">
         <div className="px-5 pt-12 pb-4 flex items-center gap-3">
           <button
             onClick={() => router.back()}
@@ -262,10 +262,7 @@ export default function ImportReviewPage() {
         </div>
       </main>
 
-      <div
-        className="fixed bottom-0 left-0 right-0 bg-p1-cream border-t border-p1-border-lt px-5 pt-4"
-        style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}
-      >
+      <div className="fixed bottom-[60px] left-0 right-0 bg-p1-cream border-t border-p1-border-lt px-5 pt-4 pb-4">
         <button
           onClick={() => attemptSave(name)}
           disabled={!name.trim() || saving}
