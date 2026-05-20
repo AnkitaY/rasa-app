@@ -57,9 +57,10 @@ After all tasks for the feature complete:
 1. Update `SPRINT.md`: change `- [ ]` to `- [x]` for each completed task.
 2. Commit: `git add <all changed files> && git commit -m "feat: [feature name] — [one line summary]"`
 3. Push: `git push origin main` (single default branch — no master)
-4. Verify production deploy via the Vercel MCP — never skip:
-   - The push above triggers Vercel's git auto-deploy. (`deploy_to_vercel` MCP is advisory only.)
-   - Call `list_deployments` (projectId `prj_YELCx2DVLax2jF7uBpKdUMa6cB53`, teamId `team_qxqbzAOXJAk0aoe5N3qlfy7q`) and find the entry matching your commit SHA.
+4. Deploy production via Vercel CLI, then verify via MCP — never skip:
+   - Vercel git auto-deploy is dead. The CLI is the only working trigger.
+   - Run `npx vercel --prod --scope aikanshs-projects`. Wait for `✅  Production: https://…vercel.app`.
+   - Call `list_deployments` (projectId `prj_YELCx2DVLax2jF7uBpKdUMa6cB53`, teamId `team_qxqbzAOXJAk0aoe5N3qlfy7q`) and find the entry matching the CLI-printed URL or your commit SHA.
    - Poll `get_deployment` until `readyState` = `READY`.
    - On failure: `get_deployment_build_logs`, report, do not mark done.
    - If MCP returns 403, escalate to reconnect Vercel; fallback: `curl -sI` 200 + visual check.

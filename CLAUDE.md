@@ -69,14 +69,14 @@
 - Commit directly to `main` — run `/review` and fix all issues before pushing
 - Always run `npm run build` before committing — ESLint runs at build time
 - Push: `git push origin main` (or just `git push` since upstream is set)
-- **After every push, verify the production deploy via the Vercel MCP:**
-  - Vercel's git integration auto-deploys on push to `main`. The `deploy_to_vercel` MCP tool is advisory only — it does not actually trigger anything. The push itself is the trigger.
+- **After every push, deploy to production via the Vercel CLI, then verify via the Vercel MCP. Do NOT rely on Vercel git auto-deploy** — Vercel's git integration is wired to a different account and our production-branch setting cannot currently be moved to `main`, so the auto-deploy is effectively dead. The CLI is the real trigger.
   - Project IDs (also in `.vercel/project.json`): projectId `prj_YELCx2DVLax2jF7uBpKdUMa6cB53`, teamId `team_qxqbzAOXJAk0aoe5N3qlfy7q`.
-  1. `mcp__d78263c1-b554-43fc-a71e-9efdfd29bc00__list_deployments` — find the deployment whose `meta.githubCommitSha` matches your commit.
-  2. Poll `mcp__d78263c1-b554-43fc-a71e-9efdfd29bc00__get_deployment` until `readyState` = `READY`.
-  3. On `ERROR` / `CANCELED`: `get_deployment_build_logs`, surface failure, do not mark task done.
-  4. If MCP returns 403: the Vercel auth scope expired — reconnect the Vercel MCP. Fallback: `curl -sI https://rasa-app-woad.vercel.app/` returns 200 AND the new content renders.
-  5. Confirm https://rasa-app-woad.vercel.app/ serves the new build.
+  1. **Trigger:** `npx vercel --prod --scope aikanshs-projects` — wait for the command to print `✅  Production: https://...vercel.app`. (`deploy_to_vercel` MCP is advisory only and does not actually deploy.)
+  2. **Verify:** `mcp__d78263c1-b554-43fc-a71e-9efdfd29bc00__list_deployments` — find the deployment that matches the CLI-printed URL or your latest commit SHA.
+  3. Poll `mcp__d78263c1-b554-43fc-a71e-9efdfd29bc00__get_deployment` until `readyState` = `READY`.
+  4. On `ERROR` / `CANCELED`: `get_deployment_build_logs`, surface failure, do not mark task done.
+  5. If MCP returns 403: the Vercel auth scope expired — reconnect the Vercel MCP. Fallback: `curl -sI https://rasa-app-woad.vercel.app/` returns 200 AND the new content renders.
+  6. Confirm https://rasa-app-woad.vercel.app/ serves the new build.
 
 ### Repo-level operating constraints
 - If `SPRINT.md` and `ops/inbox/engineering/tasks.md` conflict, stop and ask — don't assume
